@@ -51,7 +51,7 @@ def set_user_exclude_status(user_id, status):
         user_results[user_id_str] = {"top_90": [], "exclude_from_ranking": status}
     save_json(USER_RESULTS_FILE, user_results)
 
-def get_menu_keyboard(user_id, show_menu=True):
+def get_menu_keyboard(user_id):
     is_excluded = get_user_exclude_status(user_id)
     
     keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -61,6 +61,7 @@ def get_menu_keyboard(user_id, show_menu=True):
         types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
     
+    # ГЛАВНОЕ: ЗДЕСЬ МЕНЯЕТСЯ НАЗВАНИЕ КНОПКИ
     if is_excluded:
         keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
     else:
@@ -70,6 +71,15 @@ def get_menu_keyboard(user_id, show_menu=True):
     keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
     
     return keyboard
+
+def update_menu(call):
+    user_id = call.from_user.id
+    keyboard = get_menu_keyboard(user_id)
+    bot.edit_message_reply_markup(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        reply_markup=keyboard
+    )
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -179,15 +189,13 @@ def confirm_include(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    
-    # ОБНОВЛЯЕМ ТЕКУЩЕЕ СООБЩЕНИЕ С НОВОЙ КЛАВИАТУРОЙ
-    keyboard = get_menu_keyboard(user_id)
     bot.edit_message_text(
-        "✅ Ты снова в общем рейтинге.\n\nВыбери действие:",
+        "✅ Ты снова в общем рейтинге.",
         chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
+        message_id=call.message.message_id
     )
+    # ОБНОВЛЯЕМ ТОЛЬКО КНОПКИ (МЕНЯЕТСЯ НАЗВАНИЕ)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -216,26 +224,23 @@ def confirm_exclude(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    
-    # ОБНОВЛЯЕМ ТЕКУЩЕЕ СООБЩЕНИЕ С НОВОЙ КЛАВИАТУРОЙ
-    keyboard = get_menu_keyboard(user_id)
     bot.edit_message_text(
-        "✅ Ты исключён из общего рейтинга.\n\nВыбери действие:",
+        "✅ Ты исключён из общего рейтинга.",
         chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
+        message_id=call.message.message_id
     )
+    # ОБНОВЛЯЕМ ТОЛЬКО КНОПКИ (МЕНЯЕТСЯ НАЗВАНИЕ)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    keyboard = get_menu_keyboard(call.from_user.id)
     bot.edit_message_text(
         "Выбери действие:",
         chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
+        message_id=call.message.message_id
     )
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):
@@ -269,13 +274,7 @@ def story(call):
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_to_menu(call):
     bot.answer_callback_query(call.id)
-    keyboard = get_menu_keyboard(call.from_user.id)
-    bot.edit_message_text(
-        "Выбери действие:",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
-    )
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -303,12 +302,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            keyboard = get_menu_keyboard(user_id)
-            bot.send_message(
-                call.message.chat.id,
-                "Выбери действие:",
-                reply_markup=keyboard
-            )
+            update_menu(call)
         else:
             bot.edit_message_text(
                 "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -316,12 +310,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            keyboard = get_menu_keyboard(user_id)
-            bot.send_message(
-                call.message.chat.id,
-                "Выбери действие:",
-                reply_markup=keyboard
-            )
+            update_menu(call)
     else:
         bot.edit_message_text(
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -329,12 +318,7 @@ def my_results(call):
             message_id=call.message.message_id,
             parse_mode="Markdown"
         )
-        keyboard = get_menu_keyboard(user_id)
-        bot.send_message(
-            call.message.chat.id,
-            "Выбери действие:",
-            reply_markup=keyboard
-        )
+        update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -356,13 +340,7 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    keyboard = get_menu_keyboard(user_id)
-    bot.edit_message_text(
-        "Выбери действие:",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
-    )
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -376,12 +354,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        keyboard = get_menu_keyboard(user_id)
-        bot.send_message(
-            call.message.chat.id,
-            "Выбери действие:",
-            reply_markup=keyboard
-        )
+        update_menu(call)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -412,12 +385,7 @@ def show_ranking_callback(call):
         parse_mode="Markdown"
     )
     
-    keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
-        call.message.chat.id,
-        "Выбери действие:",
-        reply_markup=keyboard
-    )
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -456,12 +424,7 @@ def cancel_reply(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
-    keyboard = get_menu_keyboard(admin_id)
-    bot.send_message(
-        call.message.chat.id,
-        "Выбери действие:",
-        reply_markup=keyboard
-    )
+    update_menu(call)
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):

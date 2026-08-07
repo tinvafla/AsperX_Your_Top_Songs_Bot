@@ -1,105 +1,50 @@
 import telebot
 from telebot import types
 import json
-import sqlite3
 import threading
 import datetime
-import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from supabase import create_client, Client
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
-bot = telebot.TeleBot(TOKEN)
 
+SUPABASE_URL = "https://gbfdpkudkxkqqtykjbok.supabase.co"
+SUPABASE_KEY = "sb_secret_2nc1X5n9hqfs-CqkafxgdQ_xSH-Ym1Q"
+
+bot = telebot.TeleBot(TOKEN)
 SITE_URL = "https://tinvafla.github.io/AsperX_Your_Top_Songs_Site/"
 
-DB_FILE = "bot_data.db"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 user_states = {}
 
-def get_db():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT PRIMARY KEY,
-            top_90 TEXT,
-            exclude_from_ranking INTEGER DEFAULT 0
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS global_ranking (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            data TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
 def get_user_results(user_id):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT top_90, exclude_from_ranking FROM users WHERE user_id = ?", (str(user_id),))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return {
-            "top_90": json.loads(row[0]) if row[0] else [],
-            "exclude_from_ranking": bool(row[1])
-        }
+    response = supabase.table("users").select("*").eq("user_id", str(user_id)).execute()
+    if response.data:
+        return response.data[0]
     return None
 
 def get_all_users():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, top_90, exclude_from_ranking FROM users")
-    rows = cursor.fetchall()
-    conn.close()
-    users = []
-    for row in rows:
-        users.append({
-            "user_id": row[0],
-            "top_90": json.loads(row[1]) if row[1] else [],
-            "exclude_from_ranking": bool(row[2])
-        })
-    return users
+    response = supabase.table("users").select("*").execute()
+    return response.data
 
 def save_user_results(user_id, top_90, exclude=False):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO users (user_id, top_90, exclude_from_ranking) VALUES (?, ?, ?)",
-        (str(user_id), json.dumps(top_90, ensure_ascii=False), 1 if exclude else 0)
-    )
-    conn.commit()
-    conn.close()
+    data = {
+        "user_id": str(user_id),
+        "top_90": json.dumps(top_90, ensure_ascii=False),
+        "exclude_from_ranking": exclude
+    }
+    supabase.table("users").upsert(data).execute()
 
 def get_global_ranking():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT data FROM global_ranking WHERE id = 1")
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return json.loads(row[0]) if row[0] else {}
+    response = supabase.table("global_ranking").select("data").eq("id", 1).execute()
+    if response.data:
+        return response.data[0].get("data", {})
     return {}
 
 def save_global_ranking(data):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO global_ranking (id, data) VALUES (1, ?)",
-        (json.dumps(data, ensure_ascii=False),)
-    )
-    conn.commit()
-    conn.close()
+    supabase.table("global_ranking").upsert({"id": 1, "data": data}).execute()
 
 def get_user_exclude_status(user_id):
     result = get_user_results(user_id)
@@ -230,7 +175,7 @@ def confirm_include(call):
     points = [5, 3, 1]
     
     if user_result:
-        top_90 = user_result.get("top_90", [])
+        top_90 = json.loads(user_result.get("top_90", "[]"))
         if top_90 and len(top_90) >= 3:
             for idx, (song, _) in enumerate(top_90[:3]):
                 if song in global_ranking:
@@ -276,7 +221,7 @@ def confirm_exclude(call):
     points = [5, 3, 1]
     
     if user_result:
-        top_90 = user_result.get("top_90", [])
+        top_90 = json.loads(user_result.get("top_90", "[]"))
         if top_90 and len(top_90) >= 3:
             for idx, (song, _) in enumerate(top_90[:3]):
                 if song in global_ranking:
@@ -326,7 +271,7 @@ def my_results(call):
     user_result = get_user_results(user_id)
     
     if user_result:
-        top_90 = user_result.get("top_90", [])
+        top_90 = json.loads(user_result.get("top_90", "[]"))
         if top_90:
             text = "🏆 **ТВОЙ ТОП**\n\n"
             for i, (song, score) in enumerate(top_90, 1):
@@ -539,7 +484,7 @@ def save_results():
         old_exclude = False
         
         if user_result:
-            old_top_90 = user_result.get("top_90", [])
+            old_top_90 = json.loads(user_result.get("top_90", "[]"))
             old_exclude = user_result.get("exclude_from_ranking", False)
             
             if old_top_90 and len(old_top_90) >= 3:

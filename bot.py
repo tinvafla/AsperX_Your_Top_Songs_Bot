@@ -36,7 +36,7 @@ def start(message):
     bot.send_message(
         message.chat.id,
         "🎵 **ASPER X · YOUR TOP**\n\n"
-        "Перейди по ссылке, пройди опрос и получи свой топ-90!\n\n"
+        "Перейди по ссылке, пройди опрос и получи свой топ!\n\n"
         "После завершения нажми **«Вернуться в бота»** или **«Мои результаты»**, чтобы получить свой топ.",
         parse_mode="Markdown",
         reply_markup=keyboard
@@ -52,17 +52,15 @@ def my_results(call):
     
     if user_id_str in user_results:
         top_90 = user_results[user_id_str]
-        text = "🏆 **ТВОЙ ТОП-90**\n\n"
-        for i, (song, score) in enumerate(top_90[:10], 1):
-            text += f"{i}. {song} — {score} ⭐\n"
-        if len(top_90) > 10:
-            text += f"\n... и ещё {len(top_90) - 10} песен"
+        text = "🏆 **ТВОЙ ТОП**\n\n"
+        for i, (song, score) in enumerate(top_90, 1):
+            text += f"{i}. {song}\n"
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
     else:
         bot.send_message(
             call.message.chat.id,
             "❌ **Ты ещё не проходил опрос!**\n\n"
-            "Перейди по ссылке и пройди опрос, чтобы получить свой топ-90.",
+            "Перейди по ссылке и пройди опрос, чтобы получить свой топ.",
             parse_mode="Markdown"
         )
 
@@ -92,11 +90,9 @@ def save_results():
 
         if user_id != 'anonymous':
             try:
-                text = "🏆 **ТВОЙ ТОП-90**\n\n"
-                for i, (song, score) in enumerate(top_90[:10], 1):
-                    text += f"{i}. {song} — {score} ⭐\n"
-                if len(top_90) > 10:
-                    text += f"\n... и ещё {len(top_90) - 10} песен"
+                text = "🏆 **ТВОЙ ТОП**\n\n"
+                for i, (song, score) in enumerate(top_90, 1):
+                    text += f"{i}. {song}\n"
                 bot.send_message(int(user_id), text, parse_mode="Markdown")
                 print("✅ Топ отправлен пользователю:", user_id)
             except Exception as e:

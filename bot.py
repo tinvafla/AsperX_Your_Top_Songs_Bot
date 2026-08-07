@@ -86,7 +86,6 @@ def start(message):
     
     send_new_menu(message.chat.id, user_id)
 
-# ===== НОВАЯ КОМАНДА /EXPORT =====
 @bot.message_handler(commands=['export'])
 def export_data(message):
     if message.from_user.id != int(ADMIN_ID):
@@ -513,13 +512,44 @@ def save_results():
         
         user_id = data.get('user_id', 'anonymous')
         top_90 = data.get('top_90', [])
+        is_complete = data.get('is_complete', False)
         
         print("👤 user_id:", user_id)
         print("📊 Количество песен в top_90:", len(top_90))
+        print("✅ Тест пройден полностью:", is_complete)
 
         if not top_90:
             print("❌ top_90 пустой!")
             return jsonify({"status": "error", "message": "No top_90"}), 400
+
+        if not is_complete:
+            print("⚠️ Тест не пройден полностью — результаты НЕ сохранены в общий рейтинг")
+            try:
+                user = bot.get_chat(int(user_id))
+                name = user.first_name
+                if user.last_name:
+                    name += f" {user.last_name}"
+                username = f"@{user.username}" if user.username else "не установлен"
+                
+                text = f"⚠️ **Досрочное завершение от {name}**\n\n"
+                text += f"👤 Имя: {name}\n"
+                text += f"🔗 Ник: {username}\n"
+                text += f"🆔 ID: {user_id}\n\n"
+                text += "Тест не был пройден полностью, результаты НЕ добавлены в общий рейтинг."
+                
+                bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+            except:
+                pass
+            
+            try:
+                user_results = load_json(USER_RESULTS_FILE)
+                user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": False, "is_complete": False}
+                save_json(USER_RESULTS_FILE, user_results)
+                print("✅ Неполные результаты сохранены в историю пользователя")
+            except:
+                pass
+            
+            return jsonify({"status": "success", "note": "incomplete_results_saved_locally"}), 200
 
         user_results = load_json(USER_RESULTS_FILE)
         global_ranking = load_json(GLOBAL_RANKING_FILE)
@@ -544,7 +574,7 @@ def save_results():
                         if global_ranking[song] <= 0:
                             del global_ranking[song]
         
-        user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": old_exclude}
+        user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": old_exclude, "is_complete": True}
         save_json(USER_RESULTS_FILE, user_results)
         print("✅ Результаты сохранены для:", user_id)
 

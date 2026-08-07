@@ -292,6 +292,7 @@ def my_results(call):
                 text += f"{i}. {song}\n"
             
             keyboard = get_menu_keyboard(user_id)
+            
             bot.edit_message_text(
                 text,
                 chat_id=call.message.chat.id,

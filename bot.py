@@ -3,6 +3,7 @@ from telebot import types
 import json
 import threading
 import datetime
+import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from supabase import create_client, Client
@@ -15,6 +16,13 @@ SUPABASE_KEY = "sb_secret_2nc1X5n9hqfs-CqkafxgdQ_xSH-Ym1Q"
 
 bot = telebot.TeleBot(TOKEN)
 SITE_URL = "https://tinvafla.github.io/AsperX_Your_Top_Songs_Site/"
+
+# ОТКЛЮЧАЕМ ВЕБХУК ПРИНУДИТЕЛЬНО
+try:
+    bot.remove_webhook()
+    print("✅ Webhook удален")
+except:
+    pass
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 user_states = {}
@@ -603,6 +611,8 @@ def run_flask():
     app.run(host='0.0.0.0', port=5000)
 
 if __name__ == "__main__":
+    # ЗАПУСКАЕМ ПОЛЛИНГ, А НЕ ВЕБХУК
     threading.Thread(target=run_flask, daemon=True).start()
+    time.sleep(1)  # Даем фласку запуститься
     print("🤖 Бот и сервер запущены...")
-    bot.polling(none_stop=True)
+    bot.polling(none_stop=True, interval=0)

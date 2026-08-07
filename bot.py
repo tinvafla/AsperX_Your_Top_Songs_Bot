@@ -27,8 +27,7 @@ def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def show_menu(message, edit=False):
-    user_id = message.from_user.id if hasattr(message, 'from_user') else message.chat.id
+def get_menu_keyboard(user_id):
     user_id_str = str(user_id)
     user_results = load_json(USER_RESULTS_FILE)
     
@@ -54,42 +53,21 @@ def show_menu(message, edit=False):
     
     keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
     
-    if edit:
-        bot.edit_message_reply_markup(message.chat.id, message.message_id, reply_markup=keyboard)
-    else:
-        bot.send_message(
-            message.chat.id,
-            "Выбери действие:",
-            reply_markup=keyboard
-        )
+    return keyboard
+
+def update_menu(call):
+    user_id = call.from_user.id
+    keyboard = get_menu_keyboard(user_id)
+    bot.edit_message_reply_markup(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        reply_markup=keyboard
+    )
 
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
-    
-    is_excluded = False
-    if user_id_str in user_results:
-        user_data = user_results[user_id_str]
-        if isinstance(user_data, dict):
-            is_excluded = user_data.get("exclude_from_ranking", False)
-        else:
-            is_excluded = False
-    
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-    keyboard.add(
-        types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
-        types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results"),
-        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
-    )
-    
-    if is_excluded:
-        keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
-    else:
-        keyboard.add(types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
-    
-    keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
+    keyboard = get_menu_keyboard(user_id)
     
     bot.send_message(
         message.chat.id,
@@ -199,7 +177,7 @@ def confirm_include(call):
     except:
         pass
     
-    show_menu(call.message)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -255,12 +233,12 @@ def confirm_exclude(call):
     except:
         pass
     
-    show_menu(call.message)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    show_menu(call.message, edit=True)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -302,7 +280,7 @@ def my_results(call):
             parse_mode="Markdown"
         )
     
-    show_menu(call.message)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -324,7 +302,7 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    show_menu(call.message, edit=True)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -337,7 +315,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        show_menu(call.message)
+        update_menu(call)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -367,7 +345,7 @@ def show_ranking_callback(call):
         message_id=call.message.message_id,
         parse_mode="Markdown"
     )
-    show_menu(call.message)
+    update_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -406,6 +384,7 @@ def cancel_reply(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
+    update_menu(call)
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
@@ -438,7 +417,13 @@ def handle_messages(message):
                 bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
                 bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
                 del user_states[user_id]
-                show_menu(message)
+                
+                keyboard_menu = get_menu_keyboard(user_id)
+                bot.send_message(
+                    message.chat.id,
+                    "Выбери действие:",
+                    reply_markup=keyboard_menu
+                )
             except Exception as e:
                 bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
                 print(f"Ошибка: {e}")
@@ -456,7 +441,13 @@ def handle_messages(message):
                 )
                 bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
                 del user_states[user_id]
-                show_menu(message)
+                
+                keyboard_menu = get_menu_keyboard(user_id)
+                bot.send_message(
+                    message.chat.id,
+                    "Выбери действие:",
+                    reply_markup=keyboard_menu
+                )
             except Exception as e:
                 bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
                 print(f"Ошибка: {e}")

@@ -7,6 +7,7 @@ import threading
 import datetime
 from flask_cors import CORS
 import random
+import time
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
@@ -707,4 +708,182 @@ def handle_messages(message):
                 msg += f"📝 Текст:\n{message.text}"
                 
                 keyboard = types.InlineKeyboardMarkup(row_width=1)
-                keyboard.add(
+                keyboard.add(types.InlineKeyboardButton("📩 ОТВЕТИТЬ", callback_data=f"reply_{user_id}"))
+                
+                bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
+                bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
+                del user_states[user_id]
+                
+                send_new_menu(message.chat.id, user_id)
+            except Exception as e:
+                bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
+                print(f"Ошибка: {e}")
+        
+        elif state.startswith("reply_"):
+            target_user_id = state.replace("reply_", "")
+            if not message.text or message.text.strip() == "":
+                bot.reply_to(message, "❌ Сообщение не может быть пустым.")
+                return
+            
+            try:
+                bot.send_message(
+                    int(target_user_id),
+                    f"✉️ **Сообщение от автора:**\n\n{message.text}"
+                )
+                bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
+                del user_states[user_id]
+                
+                send_new_menu(message.chat.id, user_id)
+            except Exception as e:
+                bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
+                print(f"Ошибка: {e}")
+
+app = Flask(__name__)
+CORS(app)
+
+@app.route('/save_results', methods=['POST'])
+def save_results():
+    try:
+        data = request.get_json()
+        print("📥 ПОЛУЧЕНЫ ДАННЫЕ:", data)
+        
+        user_id = data.get('user_id', 'anonymous')
+        top_90 = data.get('top_90', [])
+        is_complete = data.get('is_complete', False)
+        
+        print("👤 user_id:", user_id)
+        print("📊 Количество песен в top_90:", len(top_90))
+        print("✅ Тест пройден полностью:", is_complete)
+
+        if not top_90:
+            print("❌ top_90 пустой!")
+            return jsonify({"status": "error", "message": "No top_90"}), 400
+
+        if not is_complete:
+            print("⚠️ Тест не пройден полностью — результаты НЕ сохранены в общий рейтинг")
+            try:
+                user = bot.get_chat(int(user_id))
+                name = user.first_name
+                if user.last_name:
+                    name += f" {user.last_name}"
+                username = f"@{user.username}" if user.username else "не установлен"
+                
+                text = f"⚠️ **Досрочное завершение от {name}**\n\n"
+                text += f"👤 Имя: {name}\n"
+                text += f"🔗 Ник: {username}\n"
+                text += f"🆔 ID: {user_id}\n\n"
+                text += "Тест не был пройден полностью, результаты НЕ добавлены в общий рейтинг."
+                
+                bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+            except:
+                pass
+            
+            try:
+                user_results = load_json(USER_RESULTS_FILE)
+                exclude_status = False
+                if user_id in user_results and isinstance(user_results[user_id], dict):
+                    exclude_status = user_results[user_id].get("exclude_from_ranking", False)
+                
+                user_results[user_id] = {
+                    "top_90": top_90,
+                    "exclude_from_ranking": exclude_status,
+                    "is_complete": False
+                }
+                save_json(USER_RESULTS_FILE, user_results)
+                print("✅ Неполные результаты сохранены в историю пользователя")
+            except:
+                pass
+            
+            return jsonify({"status": "success", "note": "incomplete_results_saved_locally"}), 200
+
+        user_results = load_json(USER_RESULTS_FILE)
+        global_ranking = load_json(GLOBAL_RANKING_FILE)
+        points = [5, 3, 1]
+        
+        exclude_status = False
+        if user_id in user_results and isinstance(user_results[user_id], dict):
+            exclude_status = user_results[user_id].get("exclude_from_ranking", False)
+        
+        if user_id in user_results:
+            user_data = user_results[user_id]
+            if isinstance(user_data, dict):
+                old_top_90 = user_data.get("top_90", [])
+            else:
+                old_top_90 = user_data
+            
+            if old_top_90 and len(old_top_90) >= 3:
+                old_top_3 = old_top_90[:3]
+                for idx, (song, _) in enumerate(old_top_3):
+                    if song in global_ranking:
+                        global_ranking[song] -= points[idx]
+                        if global_ranking[song] <= 0:
+                            del global_ranking[song]
+        
+        user_results[user_id] = {
+            "top_90": top_90,
+            "exclude_from_ranking": exclude_status,
+            "is_complete": True
+        }
+        save_json(USER_RESULTS_FILE, user_results)
+        
+        update_stats(int(user_id), "survey_complete")
+        
+        print(f"✅ Результаты сохранены для: {user_id}, статус: {'ИСКЛЮЧЕН' if exclude_status else 'УЧИТЫВАЕТСЯ'}")
+
+        if user_id != 'anonymous':
+            try:
+                text = "🏆 **ТВОЙ ТОП**\n\n"
+                for i, (song, score) in enumerate(top_90, 1):
+                    text += f"{i}. {song}\n"
+                bot.send_message(int(user_id), text, parse_mode="Markdown")
+                print("✅ Топ отправлен пользователю:", user_id)
+            except Exception as e:
+                print(f"❌ Ошибка отправки пользователю: {e}")
+
+        try:
+            user = bot.get_chat(int(user_id))
+            name = user.first_name
+            if user.last_name:
+                name += f" {user.last_name}"
+            username = f"@{user.username}" if user.username else "не установлен"
+            
+            text = f"📊 **Новый топ-3 от {name}**\n\n"
+            text += f"👤 Имя: {name}\n"
+            text += f"🔗 Ник: {username}\n"
+            text += f"🆔 ID: {user_id}\n"
+            text += f"📌 Статус: {'ИСКЛЮЧЕН из рейтинга' if exclude_status else 'УЧИТЫВАЕТСЯ в рейтинге'}\n\n"
+            for i, (song, score) in enumerate(top_90[:3], 1):
+                text += f"{i}. {song}\n"
+            
+            keyboard = types.InlineKeyboardMarkup(row_width=1)
+            keyboard.add(types.InlineKeyboardButton("📩 ОТВЕТИТЬ", callback_data=f"reply_{user_id}"))
+            
+            bot.send_message(ADMIN_ID, text, parse_mode="Markdown", reply_markup=keyboard)
+            print("✅ Топ-3 отправлен админу")
+        except Exception as e:
+            print(f"❌ Ошибка отправки админу: {e}")
+
+        if not exclude_status:
+            for idx, (song, _) in enumerate(top_90[:3]):
+                if song in global_ranking:
+                    global_ranking[song] += points[idx]
+                else:
+                    global_ranking[song] = points[idx]
+            save_json(GLOBAL_RANKING_FILE, global_ranking)
+            print("✅ Общий рейтинг обновлён")
+        else:
+            print("ℹ️ Пользователь исключён из общего рейтинга")
+
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        print("❌ ОШИБКА:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def run_flask():
+    app.run(host='0.0.0.0', port=5000)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_flask, daemon=True).start()
+    print("🤖 Бот и сервер запущены...")
+    bot.polling(none_stop=True)

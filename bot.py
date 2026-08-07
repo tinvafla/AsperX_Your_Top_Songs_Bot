@@ -980,9 +980,13 @@ def save_results():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def run_flask():
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+def start_bot():
+    print("🤖 Бот запущен...")
+    bot.polling(none_stop=True, interval=0)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()
-    print("🤖 Бот и сервер запущены...")
-    bot.polling(none_stop=True)
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    start_bot()

@@ -61,19 +61,16 @@ def get_menu_keyboard(user_id):
         types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
     
-    # ========== ГЛАВНОЕ: ЗДЕСЬ МЕНЯЕТСЯ ТЕКСТ КНОПКИ ==========
     if is_excluded:
         keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
     else:
         keyboard.add(types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
-    # ========================================================
     
     keyboard.add(types.InlineKeyboardButton("📖 ИСТОРИЯ СОЗДАНИЯ", callback_data="story"))
     keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
     
     return keyboard
 
-# ========== ФУНКЦИЯ, КОТОРАЯ ОБНОВЛЯЕТ ТОЛЬКО КНОПКИ ==========
 def update_buttons(call):
     user_id = call.from_user.id
     keyboard = get_menu_keyboard(user_id)
@@ -196,7 +193,6 @@ def confirm_include(call):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
-    # ========== ОБНОВЛЯЕМ КНОПКИ ==========
     update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
@@ -231,7 +227,6 @@ def confirm_exclude(call):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
-    # ========== ОБНОВЛЯЕМ КНОПКИ ==========
     update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")

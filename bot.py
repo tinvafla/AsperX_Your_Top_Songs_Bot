@@ -34,8 +34,7 @@ def start(message):
     ))
     bot.send_message(
         message.chat.id,
-        f"🎵 **ASPER X · YOUR TOP**\n\n"
-        f"Твой ID: {user_id}\n\n"
+        "🎵 **ASPER X · YOUR TOP**\n\n"
         "Перейди по ссылке, пройди опрос и получи свой топ-90!\n\n"
         "После завершения нажми **«Вернуться в бота»**, чтобы сохранить результат.",
         parse_mode="Markdown",

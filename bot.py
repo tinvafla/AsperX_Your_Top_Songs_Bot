@@ -4,6 +4,7 @@ import json
 import sqlite3
 import threading
 import datetime
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -624,7 +625,7 @@ def export_data(message):
         )
         bot.reply_to(message, "✅ Бэкап отправлен!")
     except Exception as e:
-        bot.reply_to(message, f"❌ Ошибка: {e}")
+        bot.reply_to(message, f"❌ Ошибка: {str(e)}")
 
 @bot.message_handler(commands=['ranking'])
 def ranking(message):

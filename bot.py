@@ -37,9 +37,8 @@ def get_user_exclude_status(user_id):
             return False
     return False
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    user_id = message.from_user.id
+def show_menu(message, edit=False):
+    user_id = message.from_user.id if hasattr(message, 'from_user') else message.chat.id
     user_id_str = str(user_id)
     user_results = load_json(USER_RESULTS_FILE)
     
@@ -57,6 +56,33 @@ def start(message):
         types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
     
+    if is_excluded:
+        keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
+    else:
+        keyboard.add(types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
+    
+    keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
+    
+    if edit:
+        bot.edit_message_reply_markup(message.chat.id, message.message_id, reply_markup=keyboard)
+    else:
+        bot.send_message(
+            message.chat.id,
+            "Выбери действие:",
+            reply_markup=keyboard
+        )
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = message.from_user.id
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
+        types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results"),
+        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
+    )
+    
+    is_excluded = get_user_exclude_status(user_id)
     if is_excluded:
         keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
     else:
@@ -97,9 +123,10 @@ def toggle_ranking(call):
             types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_toggle")
         )
         bot.answer_callback_query(call.id)
-        bot.send_message(
-            call.message.chat.id,
+        bot.edit_message_text(
             "🔓 Ты уверен, что хочешь снова учитывать свои результаты в общем рейтинге?\n\nТвои голоса снова будут влиять на общий топ.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
             reply_markup=keyboard
         )
     else:
@@ -109,9 +136,10 @@ def toggle_ranking(call):
             types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_toggle")
         )
         bot.answer_callback_query(call.id)
-        bot.send_message(
-            call.message.chat.id,
+        bot.edit_message_text(
             "🔒 Ты уверен, что хочешь исключить свои результаты из общего рейтинга?\n\nТвои голоса больше не будут влиять на общий топ.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
             reply_markup=keyboard
         )
 
@@ -146,11 +174,10 @@ def confirm_include(call):
         save_json(USER_RESULTS_FILE, user_results)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(
-        call.message.chat.id,
-        "✅ Твои результаты снова учитываются в общем рейтинге.\n\n"
-        "Ты можешь изменить это в любое время через меню."
+    bot.edit_message_text(
+        "✅ Твои результаты снова учитываются в общем рейтинге.\n\nТы можешь изменить это в любое время через меню.",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id
     )
     
     try:
@@ -170,7 +197,7 @@ def confirm_include(call):
     except:
         pass
     
-    start(call.message)
+    show_menu(call.message)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -203,11 +230,10 @@ def confirm_exclude(call):
         save_json(USER_RESULTS_FILE, user_results)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(
-        call.message.chat.id,
-        "✅ Твои результаты исключены из общего рейтинга.\n\n"
-        "Ты можешь вернуть их в любое время через меню."
+    bot.edit_message_text(
+        "✅ Твои результаты исключены из общего рейтинга.\n\nТы можешь вернуть их в любое время через меню.",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id
     )
     
     try:
@@ -227,13 +253,12 @@ def confirm_exclude(call):
     except:
         pass
     
-    start(call.message)
+    show_menu(call.message)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.message.chat.id, "❌ Действие отменено.")
+    show_menu(call.message, edit=True)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -254,23 +279,28 @@ def my_results(call):
             text = "🏆 **ТВОЙ ТОП**\n\n"
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
-            bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+            bot.edit_message_text(
+                text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="Markdown"
+            )
         else:
-            bot.send_message(
-                call.message.chat.id,
-                "❌ **У тебя нет сохранённых результатов!**\n\n"
-                "Перейди по ссылке и пройди опрос, чтобы получить свой топ.",
+            bot.edit_message_text(
+                "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
     else:
-        bot.send_message(
-            call.message.chat.id,
-            "❌ **Ты ещё не проходил опрос!**\n\n"
-            "Перейди по ссылке и пройди опрос, чтобы получить свой топ.",
+        bot.edit_message_text(
+            "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
             parse_mode="Markdown"
         )
     
-    start(call.message)
+    show_menu(call.message)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -279,9 +309,10 @@ def write_author(call):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_author"))
     bot.answer_callback_query(call.id)
-    bot.send_message(
-        call.message.chat.id,
+    bot.edit_message_text(
         "📝 Напиши своё пожелание, вопрос или отзыв.\n\nЯ передам это автору.",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
         reply_markup=keyboard
     )
 
@@ -291,14 +322,142 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.message.chat.id, "❌ Действие отменено.")
+    show_menu(call.message, edit=True)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
     bot.answer_callback_query(call.id)
-    ranking(call.message)
-    start(call.message)
+    
+    data = load_json(GLOBAL_RANKING_FILE)
+    if not data:
+        bot.edit_message_text(
+            "📊 Пока нет голосов. Будь первым!",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id
+        )
+        show_menu(call.message)
+        return
+
+    user_results = load_json(USER_RESULTS_FILE)
+    voters_count = 0
+    for u in user_results.values():
+        if isinstance(u, dict):
+            if not u.get("exclude_from_ranking", False):
+                voters_count += 1
+        else:
+            voters_count += 1
+
+    sorted_songs = sorted(data.items(), key=lambda x: x[1], reverse=True)
+    text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"
+    
+    current_place = 1
+    for i, (song, score) in enumerate(sorted_songs, 1):
+        if i > 1 and sorted_songs[i-1][1] != sorted_songs[i-2][1]:
+            current_place = i
+        medal = "🥇" if current_place == 1 else "🥈" if current_place == 2 else "🥉" if current_place == 3 else f"{current_place}."
+        text += f"{medal} {song}\n"
+        if i >= 20:
+            break
+    
+    bot.edit_message_text(
+        text,
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        parse_mode="Markdown"
+    )
+    show_menu(call.message)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
+def reply_to_user(call):
+    user_id = call.data.replace("reply_", "")
+    admin_id = call.from_user.id
+    
+    if admin_id != int(ADMIN_ID):
+        bot.answer_callback_query(call.id, "❌ У вас нет прав!")
+        return
+    
+    user_states[admin_id] = f"reply_{user_id}"
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_reply"))
+    
+    try:
+        user = bot.get_chat(int(user_id))
+        name = user.first_name
+        if user.last_name:
+            name += f" {user.last_name}"
+        username = f"@{user.username}" if user.username else f"ID: {user_id}"
+        
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            f"✏️ Ответ для {username}:\n\nНапиши своё сообщение, и я передам его пользователю.",
+            reply_markup=keyboard
+        )
+    except:
+        bot.answer_callback_query(call.id, "❌ Ошибка")
+
+@bot.callback_query_handler(func=lambda call: call.data == "cancel_reply")
+def cancel_reply(call):
+    admin_id = call.from_user.id
+    if admin_id in user_states:
+        del user_states[admin_id]
+    bot.answer_callback_query(call.id, "❌ Отменено")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
+
+@bot.message_handler(func=lambda message: True)
+def handle_messages(message):
+    user_id = message.from_user.id
+    
+    if user_id in user_states:
+        state = user_states[user_id]
+        
+        if state == "waiting_for_author_message":
+            if not message.text or message.text.strip() == "":
+                bot.reply_to(message, "❌ Сообщение не может быть пустым. Напиши что-нибудь.")
+                return
+            
+            try:
+                user = bot.get_chat(user_id)
+                name = user.first_name
+                if user.last_name:
+                    name += f" {user.last_name}"
+                username = f"@{user.username}" if user.username else "не установлен"
+                
+                msg = f"✉️ **Новое сообщение от пользователя**\n\n"
+                msg += f"👤 Имя: {name}\n"
+                msg += f"🔗 Ник: {username}\n"
+                msg += f"🆔 ID: {user_id}\n\n"
+                msg += f"📝 Текст:\n{message.text}"
+                
+                keyboard = types.InlineKeyboardMarkup(row_width=1)
+                keyboard.add(types.InlineKeyboardButton("📩 ОТВЕТИТЬ", callback_data=f"reply_{user_id}"))
+                
+                bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
+                bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
+                del user_states[user_id]
+                show_menu(message)
+            except Exception as e:
+                bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
+                print(f"Ошибка: {e}")
+        
+        elif state.startswith("reply_"):
+            target_user_id = state.replace("reply_", "")
+            if not message.text or message.text.strip() == "":
+                bot.reply_to(message, "❌ Сообщение не может быть пустым.")
+                return
+            
+            try:
+                bot.send_message(
+                    int(target_user_id),
+                    f"✉️ **Сообщение от автора:**\n\n{message.text}"
+                )
+                bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
+                del user_states[user_id]
+                show_menu(message)
+            except Exception as e:
+                bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
+                print(f"Ошибка: {e}")
 
 app = Flask(__name__)
 CORS(app)
@@ -394,126 +553,6 @@ def save_results():
     except Exception as e:
         print("❌ ОШИБКА:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
-def reply_to_user(call):
-    user_id = call.data.replace("reply_", "")
-    admin_id = call.from_user.id
-    
-    if admin_id != int(ADMIN_ID):
-        bot.answer_callback_query(call.id, "❌ У вас нет прав!")
-        return
-    
-    user_states[admin_id] = f"reply_{user_id}"
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-    keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_reply"))
-    
-    try:
-        user = bot.get_chat(int(user_id))
-        name = user.first_name
-        if user.last_name:
-            name += f" {user.last_name}"
-        username = f"@{user.username}" if user.username else f"ID: {user_id}"
-        
-        bot.answer_callback_query(call.id)
-        bot.send_message(
-            call.message.chat.id,
-            f"✏️ Ответ для {username}:\n\nНапиши своё сообщение, и я передам его пользователю.",
-            reply_markup=keyboard
-        )
-    except:
-        bot.answer_callback_query(call.id, "❌ Ошибка")
-
-@bot.callback_query_handler(func=lambda call: call.data == "cancel_reply")
-def cancel_reply(call):
-    admin_id = call.from_user.id
-    if admin_id in user_states:
-        del user_states[admin_id]
-    bot.answer_callback_query(call.id, "❌ Отменено")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
-
-@bot.message_handler(func=lambda message: True)
-def handle_messages(message):
-    user_id = message.from_user.id
-    
-    if user_id in user_states:
-        state = user_states[user_id]
-        
-        if state == "waiting_for_author_message":
-            if not message.text or message.text.strip() == "":
-                bot.reply_to(message, "❌ Сообщение не может быть пустым. Напиши что-нибудь.")
-                return
-            
-            try:
-                user = bot.get_chat(user_id)
-                name = user.first_name
-                if user.last_name:
-                    name += f" {user.last_name}"
-                username = f"@{user.username}" if user.username else "не установлен"
-                
-                msg = f"✉️ **Новое сообщение от пользователя**\n\n"
-                msg += f"👤 Имя: {name}\n"
-                msg += f"🔗 Ник: {username}\n"
-                msg += f"🆔 ID: {user_id}\n\n"
-                msg += f"📝 Текст:\n{message.text}"
-                
-                keyboard = types.InlineKeyboardMarkup(row_width=1)
-                keyboard.add(types.InlineKeyboardButton("📩 ОТВЕТИТЬ", callback_data=f"reply_{user_id}"))
-                
-                bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
-                bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
-                del user_states[user_id]
-            except Exception as e:
-                bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
-                print(f"Ошибка: {e}")
-        
-        elif state.startswith("reply_"):
-            target_user_id = state.replace("reply_", "")
-            if not message.text or message.text.strip() == "":
-                bot.reply_to(message, "❌ Сообщение не может быть пустым.")
-                return
-            
-            try:
-                bot.send_message(
-                    int(target_user_id),
-                    f"✉️ **Сообщение от автора:**\n\n{message.text}"
-                )
-                bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
-                del user_states[user_id]
-            except Exception as e:
-                bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
-                print(f"Ошибка: {e}")
-
-@bot.message_handler(commands=['ranking'])
-def ranking(message):
-    data = load_json(GLOBAL_RANKING_FILE)
-    if not data:
-        bot.send_message(message.chat.id, "📊 Пока нет голосов. Будь первым!")
-        return
-
-    user_results = load_json(USER_RESULTS_FILE)
-    voters_count = 0
-    for u in user_results.values():
-        if isinstance(u, dict):
-            if not u.get("exclude_from_ranking", False):
-                voters_count += 1
-        else:
-            voters_count += 1
-
-    sorted_songs = sorted(data.items(), key=lambda x: x[1], reverse=True)
-    text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"
-    
-    current_place = 1
-    for i, (song, score) in enumerate(sorted_songs, 1):
-        if i > 1 and sorted_songs[i-1][1] != sorted_songs[i-2][1]:
-            current_place = i
-        medal = "🥇" if current_place == 1 else "🥈" if current_place == 2 else "🥉" if current_place == 3 else f"{current_place}."
-        text += f"{medal} {song}\n"
-        if i >= 20:
-            break
-
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 def run_flask():
     app.run(host='0.0.0.0', port=5000)

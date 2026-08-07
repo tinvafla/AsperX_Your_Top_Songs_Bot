@@ -10,7 +10,6 @@ import random
 import schedule
 import time
 import zipfile
-from collections import defaultdict
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
@@ -26,102 +25,31 @@ BACKUP_FOLDER = "backups"
 user_states = {}
 
 ALL_SONGS = [
-    "Bad Trip",
-    "Monsta",
-    "Plague (feat. Ctrl+Freak)",
-    "Sorry Not Sorry",
-    "Stellar",
-    "Über Ich",
-    "Будет больно",
-    "Был таким всегда (feat. aikko)",
-    "В долгий путь",
-    "Вместе",
-    "Ветер перемен",
-    "Всё разбито (feat. KASKAD, Совергон, VULPES VULT!, ПАНЦУШОТ, Танцы Сознания)",
-    "Всё, что должно умереть",
-    "Выстрели",
-    "Волчок",
-    "Делать",
-    "Дело нескольких минут",
-    "Демоны города Икс",
-    "Держись",
-    "Дрянь",
-    "Дыхание",
-    "Дышать и жить",
-    "Заряжай",
-    "Засыпай",
-    "Земля",
-    "Звёздная",
-    "Змея",
-    "Имя",
-    "Ищи",
-    "Если зовут",
-    "Каждый справляется сам",
-    "Каприз",
-    "Карантинка",
-    "Картонная",
-    "Квадрат Декарта",
-    "Классики (feat. tamagotchik)",
-    "Колыбельная",
-    "Космос",
-    "Крики планет",
-    "Курит и молчит (feat. Ar4ey)",
-    "Лабиринт (feat. ЛИСН)",
-    "Линии жизни",
-    "Локус генома",
-    "Любить",
-    "Любовь и ненависть на улице Ленина",
-    "Мой бог",
-    "Море",
-    "Мотыльки (feat. Port Avenue)",
-    "Мы не железные",
-    "Надо улыбаться",
-    "Не выходи",
-    "Не переживай",
-    "Не люблю",
-    "Незнакомка",
-    "Никому не говори",
-    "От автора",
-    "Патрон",
-    "Пей, лечись, люби (feat. Гарри Топор)",
-    "Перелом",
-    "Петь в тишине",
-    "Питер Пэйн",
-    "План",
-    "Почти получилось",
-    "Праздничная",
-    "Право успеть",
-    "Прикосноверие",
-    "Приходи ко мне (feat. МОНТГОМЕРИ)",
-    "Привидения",
-    "Приметы (feat. ГОТЭМ)",
-    "Прозерпина",
-    "Просто поговорить",
-    "Прости (feat. VULPES VULT!)",
-    "ПТСР (feat. Ctrl+Freak)",
-    "Пускай весь мир разлетается по кускам",
-    "Пустота (feat. Ctrl+Freak)",
-    "Радость",
-    "Самая честная песня",
-    "Сгораю",
-    "Сказка (feat. Катя Лу)",
-    "Скоро узнаешь",
-    "Слёзы сквозь смех",
-    "Смерть луны",
-    "Сумасшедшим вход бесплатно",
-    "Ты будешь гореть в аду",
-    "Удачи, мистер Горски",
-    "Универсальный солдат",
-    "Улетай",
-    "Шаг назад (feat. UNVRS)",
-    "Шизофрения (feat. Серафим)",
-    "Шрам",
-    "Чтобы не забыть (feat. МОЛОДОСТЬ ВНУТРИ)",
-    "Эдем",
-    "Эпитафия (feat. DEEP-EX-SENSE, Лжедмитрий IV)",
-    "Я буду любить тебя вечно",
-    "Я рассыпаю сахар",
-    "Ядовитые"
+    "Bad Trip", "Monsta", "Plague (feat. Ctrl+Freak)", "Sorry Not Sorry", "Stellar",
+    "Über Ich", "Будет больно", "Был таким всегда (feat. aikko)", "В долгий путь",
+    "Вместе", "Ветер перемен", "Всё разбито (feat. KASKAD, Совергон, VULPES VULT!, ПАНЦУШОТ, Танцы Сознания)",
+    "Всё, что должно умереть", "Выстрели", "Волчок", "Делать", "Дело нескольких минут",
+    "Демоны города Икс", "Держись", "Дрянь", "Дыхание", "Дышать и жить", "Заряжай",
+    "Засыпай", "Земля", "Звёздная", "Змея", "Имя", "Ищи", "Если зовут",
+    "Каждый справляется сам", "Каприз", "Карантинка", "Картонная", "Квадрат Декарта",
+    "Классики (feat. tamagotchik)", "Колыбельная", "Космос", "Крики планет",
+    "Курит и молчит (feat. Ar4ey)", "Лабиринт (feat. ЛИСН)", "Линии жизни",
+    "Локус генома", "Любить", "Любовь и ненависть на улице Ленина", "Мой бог",
+    "Море", "Мотыльки (feat. Port Avenue)", "Мы не железные", "Надо улыбаться",
+    "Не выходи", "Не переживай", "Не люблю", "Незнакомка", "Никому не говори",
+    "От автора", "Патрон", "Пей, лечись, люби (feat. Гарри Топор)", "Перелом",
+    "Петь в тишине", "Питер Пэйн", "План", "Почти получилось", "Праздничная",
+    "Право успеть", "Прикосноверие", "Приходи ко мне (feat. МОНТГОМЕРИ)",
+    "Привидения", "Приметы (feat. ГОТЭМ)", "Прозерпина", "Просто поговорить",
+    "Прости (feat. VULPES VULT!)", "ПТСР (feat. Ctrl+Freak)",
+    "Пускай весь мир разлетается по кускам", "Пустота (feat. Ctrl+Freak)",
+    "Радость", "Самая честная песня", "Сгораю", "Сказка (feat. Катя Лу)",
+    "Скоро узнаешь", "Слёзы сквозь смех", "Смерть луны",
+    "Сумасшедшим вход бесплатно", "Ты будешь гореть в аду", "Удачи, мистер Горски",
+    "Универсальный солдат", "Улетай", "Шаг назад (feat. UNVRS)",
+    "Шизофрения (feat. Серафим)", "Шрам", "Чтобы не забыть (feat. МОЛОДОСТЬ ВНУТРИ)",
+    "Эдем", "Эпитафия (feat. DEEP-EX-SENSE, Лжедмитрий IV)",
+    "Я буду любить тебя вечно", "Я рассыпаю сахар", "Ядовитые"
 ]
 
 ACHIEVEMENTS = [
@@ -145,64 +73,6 @@ def load_json(file):
 def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-def init_stats():
-    if not os.path.exists(STATS_FILE):
-        stats = {
-            "users": {},
-            "daily_activity": {},
-            "total_actions": {
-                "start": 0,
-                "survey_visit": 0,
-                "ranking_view": 0,
-                "my_results": 0,
-                "toggle_ranking": 0,
-                "song_of_day": 0
-            },
-            "achievements": {},
-            "song_of_day_stats": {},
-            "last_daily_report": None
-        }
-        save_json(STATS_FILE, stats)
-    return load_json(STATS_FILE)
-
-def update_stats(user_id, action):
-    stats = load_json(STATS_FILE)
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    user_id_str = str(user_id)
-    
-    if user_id_str not in stats["users"]:
-        stats["users"][user_id_str] = {
-            "first_visit": datetime.datetime.now().isoformat(),
-            "last_visit": datetime.datetime.now().isoformat(),
-            "actions": {}
-        }
-        
-        total_users = len(stats["users"])
-        for achievement in ACHIEVEMENTS:
-            if total_users == achievement["count"] and str(achievement["count"]) not in stats["achievements"]:
-                stats["achievements"][str(achievement["count"])] = datetime.datetime.now().isoformat()
-                bot.send_message(ADMIN_ID, f"🎉 ДОСТИЖЕНИЕ!\n\n👥 Количество пользователей достигло {achievement['count']}!\n\n{achievement['message']}\n\n📊 Текущая статистика:\n- Всего: {total_users} пользователей\n- Прошли опрос: {len([u for u in stats['users'].values() if u.get('actions', {}).get('survey_visit', 0) > 0])}\n\nСледующая цель: {get_next_achievement(total_users)}")
-    
-    stats["users"][user_id_str]["last_visit"] = datetime.datetime.now().isoformat()
-    if action not in stats["users"][user_id_str]["actions"]:
-        stats["users"][user_id_str]["actions"][action] = 0
-    stats["users"][user_id_str]["actions"][action] += 1
-    
-    if action in stats["total_actions"]:
-        stats["total_actions"][action] += 1
-    
-    if today not in stats["daily_activity"]:
-        stats["daily_activity"][today] = 0
-    stats["daily_activity"][today] += 1
-    
-    save_json(STATS_FILE, stats)
-
-def get_next_achievement(total_users):
-    for achievement in ACHIEVEMENTS:
-        if achievement["count"] > total_users:
-            return f"{achievement['count']} пользователей (осталось {achievement['count'] - total_users})"
-    return "Новых целей пока нет 🎯"
 
 def get_user_exclude_status(user_id):
     user_id_str = str(user_id)
@@ -251,6 +121,44 @@ def get_user_info(user_id):
         return name, username
     except:
         return f"User {user_id}", "неизвестен"
+
+def update_stats(user_id, action):
+    stats = load_json(STATS_FILE)
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    user_id_str = str(user_id)
+    
+    if user_id_str not in stats["users"]:
+        stats["users"][user_id_str] = {
+            "first_visit": datetime.datetime.now().isoformat(),
+            "last_visit": datetime.datetime.now().isoformat(),
+            "actions": {}
+        }
+        
+        total_users = len(stats["users"])
+        for achievement in ACHIEVEMENTS:
+            if total_users == achievement["count"] and str(achievement["count"]) not in stats["achievements"]:
+                stats["achievements"][str(achievement["count"])] = datetime.datetime.now().isoformat()
+                bot.send_message(ADMIN_ID, f"🎉 ДОСТИЖЕНИЕ!\n\n👥 Количество пользователей достигло {achievement['count']}!\n\n{achievement['message']}\n\nСледующая цель: {get_next_achievement(total_users)}")
+    
+    stats["users"][user_id_str]["last_visit"] = datetime.datetime.now().isoformat()
+    if action not in stats["users"][user_id_str]["actions"]:
+        stats["users"][user_id_str]["actions"][action] = 0
+    stats["users"][user_id_str]["actions"][action] += 1
+    
+    if action in stats["total_actions"]:
+        stats["total_actions"][action] += 1
+    
+    if today not in stats["daily_activity"]:
+        stats["daily_activity"][today] = 0
+    stats["daily_activity"][today] += 1
+    
+    save_json(STATS_FILE, stats)
+
+def get_next_achievement(total_users):
+    for achievement in ACHIEVEMENTS:
+        if achievement["count"] > total_users:
+            return f"{achievement['count']} пользователей (осталось {achievement['count'] - total_users})"
+    return "Новых целей пока нет 🎯"
 
 def get_menu_keyboard(user_id):
     is_excluded = get_user_exclude_status(user_id)
@@ -308,6 +216,9 @@ def create_backup():
     send_daily_report()
 
 def manage_old_backups():
+    if not os.path.exists(BACKUP_FOLDER):
+        return
+    
     backups = sorted([f for f in os.listdir(BACKUP_FOLDER) if f.startswith("backup_") and f.endswith(".json")])
     
     if len(backups) > 30:
@@ -335,8 +246,6 @@ def send_daily_report():
     yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     
     total_users = len(stats["users"])
-    completed = len([u for u in stats["users"].values() if u.get("actions", {}).get("survey_visit", 0) > 0])
-    excluded = len([u for u in load_json(USER_RESULTS_FILE).values() if isinstance(u, dict) and u.get("exclude_from_ranking", False)])
     
     today_activity = stats["daily_activity"].get(today, 0)
     yesterday_activity = stats["daily_activity"].get(yesterday, 0)
@@ -347,8 +256,7 @@ def send_daily_report():
             new_users_today += 1
     
     report = f"📊 ЕЖЕДНЕВНЫЙ ОТЧЁТ ЗА {today}\n\n"
-    report += f"👥 Новые пользователи: +{new_users_today}\n"
-    report += f"✅ Прошли опрос: +{len([u for u in stats['users'].values() if u.get('actions', {}).get('survey_visit', 0) > 0 and u.get('first_visit', '').startswith(today)])}\n\n"
+    report += f"👥 Новые пользователи: +{new_users_today}\n\n"
     report += f"📈 Активность за день:\n"
     report += f"- Запусков бота: {stats['total_actions'].get('start', 0)}\n"
     report += f"- Переходов к опросу: {stats['total_actions'].get('survey_visit', 0)}\n"
@@ -373,6 +281,24 @@ def run_scheduler():
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
+    
+    if not os.path.exists(STATS_FILE):
+        stats = {
+            "users": {},
+            "daily_activity": {},
+            "total_actions": {
+                "start": 0,
+                "survey_visit": 0,
+                "ranking_view": 0,
+                "my_results": 0,
+                "toggle_ranking": 0,
+                "song_of_day": 0
+            },
+            "achievements": {},
+            "song_of_day_stats": {},
+            "last_daily_report": None
+        }
+        save_json(STATS_FILE, stats)
     
     update_stats(user_id, "start")
     
@@ -706,4 +632,26 @@ def my_results(call):
             
             bot.edit_message_text(
                 text,
-                chat_id=call.message
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="Markdown"
+            )
+            send_new_menu(call.message.chat.id, user_id)
+        else:
+            bot.edit_message_text(
+                "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="Markdown"
+            )
+            send_new_menu(call.message.chat.id, user_id)
+    else:
+        bot.edit_message_text(
+            "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="Markdown"
+        )
+        send_new_menu(call.message.chat.id, user_id)
+
+@bot.callback_query_handler(func=lambda call

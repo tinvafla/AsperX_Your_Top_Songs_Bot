@@ -55,10 +55,17 @@ def get_menu_keyboard(user_id):
     
     return keyboard
 
+def send_new_menu(chat_id, user_id):
+    keyboard = get_menu_keyboard(user_id)
+    bot.send_message(
+        chat_id,
+        "Выбери действие:",
+        reply_markup=keyboard
+    )
+
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
-    keyboard = get_menu_keyboard(user_id)
     
     bot.send_message(
         message.chat.id,
@@ -69,9 +76,10 @@ def start(message):
         "🛠️ Всё сделано на чистом энтузиазме, без опыта, но с любовью.\n"
         "Профессионализма не нашлось — вложила душу.\n"
         "Любая обратная связь — в радость!",
-        parse_mode="Markdown",
-        reply_markup=keyboard
+        parse_mode="Markdown"
     )
+    
+    send_new_menu(message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):
@@ -146,7 +154,7 @@ def confirm_include(call):
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
-        "✅ Твои результаты снова учитываются в общем рейтинге.\n\nТы можешь изменить это в любое время через меню.",
+        "✅ Твои результаты снова учитываются в общем рейтинге.",
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
@@ -168,12 +176,7 @@ def confirm_include(call):
     except:
         pass
     
-    keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
-        call.message.chat.id,
-        "Выбери действие:",
-        reply_markup=keyboard
-    )
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -207,7 +210,7 @@ def confirm_exclude(call):
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
-        "✅ Твои результаты исключены из общего рейтинга.\n\nТы можешь вернуть их в любое время через меню.",
+        "✅ Твои результаты исключены из общего рейтинга.",
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
@@ -229,22 +232,12 @@ def confirm_exclude(call):
     except:
         pass
     
-    keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
-        call.message.chat.id,
-        "Выбери действие:",
-        reply_markup=keyboard
-    )
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    keyboard = get_menu_keyboard(call.from_user.id)
-    bot.edit_message_reply_markup(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
-    )
+    send_new_menu(call.message.chat.id, call.from_user.id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -286,12 +279,7 @@ def my_results(call):
             parse_mode="Markdown"
         )
     
-    keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
-        call.message.chat.id,
-        "Выбери действие:",
-        reply_markup=keyboard
-    )
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -313,12 +301,7 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    keyboard = get_menu_keyboard(user_id)
-    bot.edit_message_reply_markup(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        reply_markup=keyboard
-    )
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -332,12 +315,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        keyboard = get_menu_keyboard(user_id)
-        bot.send_message(
-            call.message.chat.id,
-            "Выбери действие:",
-            reply_markup=keyboard
-        )
+        send_new_menu(call.message.chat.id, user_id)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -368,12 +346,7 @@ def show_ranking_callback(call):
         parse_mode="Markdown"
     )
     
-    keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
-        call.message.chat.id,
-        "Выбери действие:",
-        reply_markup=keyboard
-    )
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -444,13 +417,7 @@ def handle_messages(message):
                 bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
                 bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
                 del user_states[user_id]
-                
-                menu_keyboard = get_menu_keyboard(user_id)
-                bot.send_message(
-                    message.chat.id,
-                    "Выбери действие:",
-                    reply_markup=menu_keyboard
-                )
+                send_new_menu(message.chat.id, user_id)
             except Exception as e:
                 bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
                 print(f"Ошибка: {e}")
@@ -468,13 +435,7 @@ def handle_messages(message):
                 )
                 bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
                 del user_states[user_id]
-                
-                menu_keyboard = get_menu_keyboard(user_id)
-                bot.send_message(
-                    message.chat.id,
-                    "Выбери действие:",
-                    reply_markup=menu_keyboard
-                )
+                send_new_menu(message.chat.id, user_id)
             except Exception as e:
                 bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
                 print(f"Ошибка: {e}")

@@ -8,6 +8,7 @@ import datetime
 from flask_cors import CORS
 import random
 import time
+import requests
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
@@ -208,6 +209,15 @@ def send_new_menu(chat_id, user_id):
         user_states[user_id] = {}
     user_states[user_id]["menu_message_id"] = msg.message_id
     return msg
+
+def keep_alive():
+    while True:
+        try:
+            requests.get('https://asperx-your-top-songs-bot.onrender.com/')
+            print("✅ Keep-alive пинг отправлен")
+        except:
+            print("❌ Ошибка пинга")
+        time.sleep(600)
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -979,14 +989,22 @@ def save_results():
         print("❌ ОШИБКА:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/')
+def index():
+    return "Бот активен ✅", 200
+
 def run_flask():
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
 
 def start_bot():
     print("🤖 Бот запущен...")
-    bot.polling(none_stop=True, interval=0)
+    bot.polling(none_stop=True, interval=1, timeout=20)
 
 if __name__ == "__main__":
+    keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
+    keep_alive_thread.start()
+    
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
+    
     start_bot()

@@ -27,17 +27,19 @@ def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def get_menu_keyboard(user_id):
+def get_user_exclude_status(user_id):
     user_id_str = str(user_id)
     user_results = load_json(USER_RESULTS_FILE)
-    
-    is_excluded = False
     if user_id_str in user_results:
         user_data = user_results[user_id_str]
         if isinstance(user_data, dict):
-            is_excluded = user_data.get("exclude_from_ranking", False)
+            return user_data.get("exclude_from_ranking", False)
         else:
-            is_excluded = False
+            return False
+    return False
+
+def get_menu_keyboard(user_id):
+    is_excluded = get_user_exclude_status(user_id)
     
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
@@ -101,7 +103,7 @@ def story(call):
         "У меня не было опыта. Вообще. Ни строчки кода до этого. Но были нейросети, пара свободных вечеров и огромное желание. Так появился этот бот и сайт. С нуля, с идеей, с багами и с любовью.\n\n"
         "Собрала 90 песен Asper X — ровно столько, сколько нашла. Если что-то пропустила — пиши, исправлюсь! Здесь только основной проект, без RetroElektro и других ответвлений, хотя они тоже крутые и, надеюсь, до них руки дойдут тоже.\n\n"
         "В мечтах — добавить короткие превью к песням (секунд по 5), чтобы можно было вспомнить трек, если название не говорит само за себя. Но тут сложность с авторскими правами, поэтому пока не готова. Если этот бот найдёт отклик у аудитории — я вернусь к этой идее.\n\n"
-        "Версия 1.0 — тестовая. Проверяю, заходит ли такой формат, и очень переживаю, чтобы обновления не сломали уже собранные результаты 🫶\n\n"
+        "Версия 1.0 — тестовая. Проверяю, заходит ли такой формат, и очень переживаю, чтобы обновления не сломали уже собранные результаты 🤞\n\n"
         "Всё это сделано из искренней любви к творчеству группы Asper X и Тима Эрны. Гиперфиксации нейроотличных умных людей творят чудеса. Очень жду 27 октября, чтобы выразить свою любовь вживую 🫶\n\n"
         "Спасибо, что вы здесь. Что проходите опрос. Что помогаете делать этот рейтинг живым.\n\n"
         "Связаться со мной можно через функционал бота — я читаю всё 💬",
@@ -122,13 +124,7 @@ def toggle_ranking(call):
     user_id_str = str(user_id)
     user_results = load_json(USER_RESULTS_FILE)
     
-    is_excluded = False
-    if user_id_str in user_results:
-        user_data = user_results[user_id_str]
-        if isinstance(user_data, dict):
-            is_excluded = user_data.get("exclude_from_ranking", False)
-        else:
-            is_excluded = False
+    is_excluded = get_user_exclude_status(user_id)
     
     if is_excluded:
         keyboard = types.InlineKeyboardMarkup(row_width=2)

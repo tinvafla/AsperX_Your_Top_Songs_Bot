@@ -27,16 +27,6 @@ def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def get_user_exclude_status(user_id):
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
-    if user_id_str in user_results:
-        if isinstance(user_results[user_id_str], dict):
-            return user_results[user_id_str].get("exclude_from_ranking", False)
-        else:
-            return False
-    return False
-
 def show_menu(message, edit=False):
     user_id = message.from_user.id if hasattr(message, 'from_user') else message.chat.id
     user_id_str = str(user_id)
@@ -44,8 +34,9 @@ def show_menu(message, edit=False):
     
     is_excluded = False
     if user_id_str in user_results:
-        if isinstance(user_results[user_id_str], dict):
-            is_excluded = user_results[user_id_str].get("exclude_from_ranking", False)
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            is_excluded = user_data.get("exclude_from_ranking", False)
         else:
             is_excluded = False
     
@@ -75,6 +66,17 @@ def show_menu(message, edit=False):
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    
+    is_excluded = False
+    if user_id_str in user_results:
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            is_excluded = user_data.get("exclude_from_ranking", False)
+        else:
+            is_excluded = False
+    
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
         types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
@@ -82,7 +84,6 @@ def start(message):
         types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
     
-    is_excluded = get_user_exclude_status(user_id)
     if is_excluded:
         keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
     else:
@@ -111,8 +112,9 @@ def toggle_ranking(call):
     
     is_excluded = False
     if user_id_str in user_results:
-        if isinstance(user_results[user_id_str], dict):
-            is_excluded = user_results[user_id_str].get("exclude_from_ranking", False)
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            is_excluded = user_data.get("exclude_from_ranking", False)
         else:
             is_excluded = False
     

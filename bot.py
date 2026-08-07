@@ -51,7 +51,7 @@ def set_user_exclude_status(user_id, status):
         user_results[user_id_str] = {"top_90": [], "exclude_from_ranking": status}
     save_json(USER_RESULTS_FILE, user_results)
 
-def get_menu_keyboard(user_id):
+def get_menu_keyboard(user_id, show_menu=True):
     is_excluded = get_user_exclude_status(user_id)
     
     keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -179,6 +179,8 @@ def confirm_include(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
+    
+    # ОБНОВЛЯЕМ ТЕКУЩЕЕ СООБЩЕНИЕ С НОВОЙ КЛАВИАТУРОЙ
     keyboard = get_menu_keyboard(user_id)
     bot.edit_message_text(
         "✅ Ты снова в общем рейтинге.\n\nВыбери действие:",
@@ -214,6 +216,8 @@ def confirm_exclude(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
+    
+    # ОБНОВЛЯЕМ ТЕКУЩЕЕ СООБЩЕНИЕ С НОВОЙ КЛАВИАТУРОЙ
     keyboard = get_menu_keyboard(user_id)
     bot.edit_message_text(
         "✅ Ты исключён из общего рейтинга.\n\nВыбери действие:",
@@ -293,12 +297,16 @@ def my_results(call):
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
             
-            keyboard = get_menu_keyboard(user_id)
             bot.edit_message_text(
                 text,
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                parse_mode="Markdown",
+                parse_mode="Markdown"
+            )
+            keyboard = get_menu_keyboard(user_id)
+            bot.send_message(
+                call.message.chat.id,
+                "Выбери действие:",
                 reply_markup=keyboard
             )
         else:

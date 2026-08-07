@@ -1,66 +1,107 @@
 import telebot
 from telebot import types
 import json
-import asyncio
+import sqlite3
 import threading
+import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from GramDB import GramDB
 
-TOKEN = "С8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
+TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
 bot = telebot.TeleBot(TOKEN)
 
 SITE_URL = "https://tinvafla.github.io/AsperX_Your_Top_Songs_Site/"
 
-DB_URL = "https://t.me/asperx_data"
-
+DB_FILE = "bot_data.db"
 user_states = {}
 
-def get_sync_db():
-    return GramDB(DB_URL, [TOKEN], api_id=0, api_hash="")
+def get_db():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-def run_async(coro):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
-
-async def get_user_results(user_id):
-    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
-        result = await db.find_one("users", {"user_id": user_id})
-        return result
-
-async def get_all_users():
-    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
-        return await db.find("users", {})
-
-async def save_user_results(user_id, top_90, exclude=False):
-    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
-        await db.update_one(
-            "users",
-            {"user_id": user_id},
-            {"$set": {"top_90": top_90, "exclude_from_ranking": exclude}},
-            upsert=True
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            top_90 TEXT,
+            exclude_from_ranking INTEGER DEFAULT 0
         )
-
-async def get_global_ranking():
-    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
-        result = await db.find_one("global", {"_id": "ranking"})
-        if result:
-            return result.get("data", {})
-        return {}
-
-async def save_global_ranking(data):
-    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
-        await db.update_one(
-            "global",
-            {"_id": "ranking"},
-            {"$set": {"data": data}},
-            upsert=True
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS global_ranking (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            data TEXT
         )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def get_user_results(user_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT top_90, exclude_from_ranking FROM users WHERE user_id = ?", (str(user_id),))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {
+            "top_90": json.loads(row[0]) if row[0] else [],
+            "exclude_from_ranking": bool(row[1])
+        }
+    return None
+
+def get_all_users():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, top_90, exclude_from_ranking FROM users")
+    rows = cursor.fetchall()
+    conn.close()
+    users = []
+    for row in rows:
+        users.append({
+            "user_id": row[0],
+            "top_90": json.loads(row[1]) if row[1] else [],
+            "exclude_from_ranking": bool(row[2])
+        })
+    return users
+
+def save_user_results(user_id, top_90, exclude=False):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO users (user_id, top_90, exclude_from_ranking) VALUES (?, ?, ?)",
+        (str(user_id), json.dumps(top_90, ensure_ascii=False), 1 if exclude else 0)
+    )
+    conn.commit()
+    conn.close()
+
+def get_global_ranking():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT data FROM global_ranking WHERE id = 1")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return json.loads(row[0]) if row[0] else {}
+    return {}
+
+def save_global_ranking(data):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO global_ranking (id, data) VALUES (1, ?)",
+        (json.dumps(data, ensure_ascii=False),)
+    )
+    conn.commit()
+    conn.close()
 
 def get_user_exclude_status(user_id):
-    result = run_async(get_user_results(user_id))
+    result = get_user_results(user_id)
     if result:
         return result.get("exclude_from_ranking", False)
     return False
@@ -183,8 +224,8 @@ def toggle_ranking(call):
 def confirm_include(call):
     user_id = call.from_user.id
     
-    user_result = run_async(get_user_results(user_id))
-    global_ranking = run_async(get_global_ranking())
+    user_result = get_user_results(user_id)
+    global_ranking = get_global_ranking()
     points = [5, 3, 1]
     
     if user_result:
@@ -196,8 +237,8 @@ def confirm_include(call):
                 else:
                     global_ranking[song] = points[idx]
         
-        run_async(save_user_results(user_id, top_90, False))
-        run_async(save_global_ranking(global_ranking))
+        save_user_results(user_id, top_90, False)
+        save_global_ranking(global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
@@ -229,8 +270,8 @@ def confirm_include(call):
 def confirm_exclude(call):
     user_id = call.from_user.id
     
-    user_result = run_async(get_user_results(user_id))
-    global_ranking = run_async(get_global_ranking())
+    user_result = get_user_results(user_id)
+    global_ranking = get_global_ranking()
     points = [5, 3, 1]
     
     if user_result:
@@ -242,8 +283,8 @@ def confirm_exclude(call):
                     if global_ranking[song] <= 0:
                         del global_ranking[song]
         
-        run_async(save_user_results(user_id, top_90, True))
-        run_async(save_global_ranking(global_ranking))
+        save_user_results(user_id, top_90, True)
+        save_global_ranking(global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
@@ -281,7 +322,7 @@ def my_results(call):
     user_id = call.from_user.id
     bot.answer_callback_query(call.id, "📊 Загружаю твои результаты...")
     
-    user_result = run_async(get_user_results(user_id))
+    user_result = get_user_results(user_id)
     
     if user_result:
         top_90 = user_result.get("top_90", [])
@@ -342,7 +383,7 @@ def show_ranking_callback(call):
     user_id = call.from_user.id
     bot.answer_callback_query(call.id)
     
-    global_ranking = run_async(get_global_ranking())
+    global_ranking = get_global_ranking()
     if not global_ranking:
         bot.edit_message_text(
             "📊 Пока нет голосов. Будь первым!",
@@ -352,7 +393,7 @@ def show_ranking_callback(call):
         send_new_menu(call.message.chat.id, user_id)
         return
 
-    all_users = run_async(get_all_users())
+    all_users = get_all_users()
     voters_count = 0
     for u in all_users:
         if not u.get("exclude_from_ranking", False):
@@ -490,8 +531,8 @@ def save_results():
             print("❌ top_90 пустой!")
             return jsonify({"status": "error", "message": "No top_90"}), 400
 
-        user_result = run_async(get_user_results(user_id))
-        global_ranking = run_async(get_global_ranking())
+        user_result = get_user_results(user_id)
+        global_ranking = get_global_ranking()
         points = [5, 3, 1]
         
         old_exclude = False
@@ -508,7 +549,7 @@ def save_results():
                         if global_ranking[song] <= 0:
                             del global_ranking[song]
         
-        run_async(save_user_results(user_id, top_90, old_exclude))
+        save_user_results(user_id, top_90, old_exclude)
         print("✅ Результаты сохранены для:", user_id)
 
         if user_id != 'anonymous':
@@ -549,7 +590,7 @@ def save_results():
                     global_ranking[song] += points[idx]
                 else:
                     global_ranking[song] = points[idx]
-            run_async(save_global_ranking(global_ranking))
+            save_global_ranking(global_ranking)
             print("✅ Общий рейтинг обновлён")
         else:
             print("ℹ️ Пользователь исключён из общего рейтинга")
@@ -567,13 +608,13 @@ def export_data(message):
         return
     
     try:
-        all_users = run_async(get_all_users())
-        global_ranking = run_async(get_global_ranking())
+        all_users = get_all_users()
+        global_ranking = get_global_ranking()
         
         data = {
             "users": all_users,
             "global_ranking": global_ranking,
-            "export_date": str(import_datetime.datetime.now())
+            "export_date": str(datetime.datetime.now())
         }
         
         bot.send_document(
@@ -585,16 +626,14 @@ def export_data(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Ошибка: {e}")
 
-import datetime as import_datetime
-
 @bot.message_handler(commands=['ranking'])
 def ranking(message):
-    global_ranking = run_async(get_global_ranking())
+    global_ranking = get_global_ranking()
     if not global_ranking:
         bot.send_message(message.chat.id, "📊 Пока нет голосов. Будь первым!")
         return
 
-    all_users = run_async(get_all_users())
+    all_users = get_all_users()
     voters_count = 0
     for u in all_users:
         if not u.get("exclude_from_ranking", False):

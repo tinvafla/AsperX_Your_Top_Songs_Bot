@@ -61,18 +61,20 @@ def get_menu_keyboard(user_id):
         types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
     
-    # ГЛАВНОЕ: ЗДЕСЬ МЕНЯЕТСЯ НАЗВАНИЕ КНОПКИ
+    # ========== ГЛАВНОЕ: ЗДЕСЬ МЕНЯЕТСЯ ТЕКСТ КНОПКИ ==========
     if is_excluded:
         keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
     else:
         keyboard.add(types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
+    # ========================================================
     
     keyboard.add(types.InlineKeyboardButton("📖 ИСТОРИЯ СОЗДАНИЯ", callback_data="story"))
     keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
     
     return keyboard
 
-def update_menu(call):
+# ========== ФУНКЦИЯ, КОТОРАЯ ОБНОВЛЯЕТ ТОЛЬКО КНОПКИ ==========
+def update_buttons(call):
     user_id = call.from_user.id
     keyboard = get_menu_keyboard(user_id)
     bot.edit_message_reply_markup(
@@ -194,8 +196,8 @@ def confirm_include(call):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
-    # ОБНОВЛЯЕМ ТОЛЬКО КНОПКИ (МЕНЯЕТСЯ НАЗВАНИЕ)
-    update_menu(call)
+    # ========== ОБНОВЛЯЕМ КНОПКИ ==========
+    update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -229,8 +231,8 @@ def confirm_exclude(call):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
-    # ОБНОВЛЯЕМ ТОЛЬКО КНОПКИ (МЕНЯЕТСЯ НАЗВАНИЕ)
-    update_menu(call)
+    # ========== ОБНОВЛЯЕМ КНОПКИ ==========
+    update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
@@ -240,7 +242,7 @@ def cancel_toggle(call):
         chat_id=call.message.chat.id,
         message_id=call.message.message_id
     )
-    update_menu(call)
+    update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):
@@ -274,7 +276,7 @@ def story(call):
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_to_menu(call):
     bot.answer_callback_query(call.id)
-    update_menu(call)
+    update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -302,7 +304,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            update_menu(call)
+            update_buttons(call)
         else:
             bot.edit_message_text(
                 "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -310,7 +312,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            update_menu(call)
+            update_buttons(call)
     else:
         bot.edit_message_text(
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -318,7 +320,7 @@ def my_results(call):
             message_id=call.message.message_id,
             parse_mode="Markdown"
         )
-        update_menu(call)
+        update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -340,7 +342,7 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    update_menu(call)
+    update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -354,7 +356,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        update_menu(call)
+        update_buttons(call)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -385,7 +387,7 @@ def show_ranking_callback(call):
         parse_mode="Markdown"
     )
     
-    update_menu(call)
+    update_buttons(call)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -424,7 +426,7 @@ def cancel_reply(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
-    update_menu(call)
+    update_buttons(call)
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):

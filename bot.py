@@ -10,7 +10,7 @@ TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
 bot = telebot.TeleBot(TOKEN)
 
-SITE_URL = "https://asperxyourtopsongs.netlify.app/"
+SITE_URL = "https://tinvafla.github.io/AsperX_Your_Top_Songs_Site/"
 
 GLOBAL_RANKING_FILE = "global_ranking.json"
 USER_RESULTS_FILE = "user_results.json"

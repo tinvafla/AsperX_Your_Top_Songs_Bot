@@ -181,7 +181,7 @@ def confirm_include(call):
     bot.answer_callback_query(call.id, "✅ Готово!")
     keyboard = get_menu_keyboard(user_id)
     bot.edit_message_text(
-        "✅ Твои результаты снова учитываются в общем рейтинге.\n\nВыбери действие:",
+        "✅ Ты снова в общем рейтинге.\n\nВыбери действие:",
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         reply_markup=keyboard
@@ -216,7 +216,7 @@ def confirm_exclude(call):
     bot.answer_callback_query(call.id, "✅ Готово!")
     keyboard = get_menu_keyboard(user_id)
     bot.edit_message_text(
-        "✅ Твои результаты исключены из общего рейтинга.\n\nВыбери действие:",
+        "✅ Ты исключён из общего рейтинга.\n\nВыбери действие:",
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
         reply_markup=keyboard
@@ -293,16 +293,12 @@ def my_results(call):
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
             
+            keyboard = get_menu_keyboard(user_id)
             bot.edit_message_text(
                 text,
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                parse_mode="Markdown"
-            )
-            keyboard = get_menu_keyboard(user_id)
-            bot.send_message(
-                call.message.chat.id,
-                "Выбери действие:",
+                parse_mode="Markdown",
                 reply_markup=keyboard
             )
         else:

@@ -71,23 +71,30 @@ def get_menu_keyboard(user_id):
     
     return keyboard
 
-def show_menu(chat_id, user_id, message_id=None):
+def send_or_edit_menu(chat_id, user_id, message_id=None):
     keyboard = get_menu_keyboard(user_id)
     text = "Выбери действие:"
     
     if message_id:
-        bot.edit_message_text(
-            text,
-            chat_id=chat_id,
-            message_id=message_id,
-            reply_markup=keyboard
-        )
+        try:
+            bot.edit_message_text(
+                text,
+                chat_id=chat_id,
+                message_id=message_id,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            print(f"Ошибка обновления: {e}")
+            bot.send_message(chat_id, text, reply_markup=keyboard)
     else:
-        bot.send_message(
-            chat_id,
-            text,
-            reply_markup=keyboard
-        )
+        msg = bot.send_message(chat_id, text, reply_markup=keyboard)
+        return msg.message_id
+
+def refresh_menu(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id
+    message_id = call.message.message_id
+    send_or_edit_menu(chat_id, user_id, message_id)
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -106,7 +113,8 @@ def start(message):
         parse_mode="HTML"
     )
     
-    show_menu(message.chat.id, user_id)
+    msg = send_or_edit_menu(message.chat.id, user_id)
+    user_states[user_id] = {"menu_message_id": msg}
 
 @bot.message_handler(commands=['export'])
 def export_data(message):
@@ -192,7 +200,7 @@ def confirm_include(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    show_menu(call.message.chat.id, user_id, call.message.message_id)
+    refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -221,12 +229,12 @@ def confirm_exclude(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    show_menu(call.message.chat.id, user_id, call.message.message_id)
+    refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    show_menu(call.message.chat.id, call.from_user.id, call.message.message_id)
+    refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):
@@ -260,7 +268,7 @@ def story(call):
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_to_menu(call):
     bot.answer_callback_query(call.id)
-    show_menu(call.message.chat.id, call.from_user.id, call.message.message_id)
+    refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -288,7 +296,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            show_menu(call.message.chat.id, user_id, call.message.message_id)
+            refresh_menu(call)
         else:
             bot.edit_message_text(
                 "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -296,7 +304,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            show_menu(call.message.chat.id, user_id, call.message.message_id)
+            refresh_menu(call)
     else:
         bot.edit_message_text(
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -304,7 +312,7 @@ def my_results(call):
             message_id=call.message.message_id,
             parse_mode="Markdown"
         )
-        show_menu(call.message.chat.id, user_id, call.message.message_id)
+        refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -326,7 +334,7 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    show_menu(call.message.chat.id, user_id, call.message.message_id)
+    refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -340,7 +348,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        show_menu(call.message.chat.id, user_id, call.message.message_id)
+        refresh_menu(call)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -371,7 +379,7 @@ def show_ranking_callback(call):
         parse_mode="Markdown"
     )
     
-    show_menu(call.message.chat.id, user_id, call.message.message_id)
+    refresh_menu(call)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -410,7 +418,7 @@ def cancel_reply(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
-    show_menu(call.message.chat.id, admin_id)
+    refresh_menu(call)
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
@@ -444,7 +452,7 @@ def handle_messages(message):
                 bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
                 del user_states[user_id]
                 
-                show_menu(message.chat.id, user_id)
+                send_or_edit_menu(message.chat.id, user_id)
             except Exception as e:
                 bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
                 print(f"Ошибка: {e}")
@@ -463,7 +471,7 @@ def handle_messages(message):
                 bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
                 del user_states[user_id]
                 
-                show_menu(message.chat.id, user_id)
+                send_or_edit_menu(message.chat.id, user_id)
             except Exception as e:
                 bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
                 print(f"Ошибка: {e}")

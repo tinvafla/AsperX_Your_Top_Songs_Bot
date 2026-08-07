@@ -290,11 +290,14 @@ def my_results(call):
             text = "🏆 **ТВОЙ ТОП**\n\n"
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
+            
+            keyboard = get_menu_keyboard(user_id)
             bot.edit_message_text(
                 text,
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                parse_mode="Markdown"
+                parse_mode="Markdown",
+                reply_markup=keyboard
             )
         else:
             bot.edit_message_text(
@@ -303,6 +306,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
+            send_new_menu(call.message.chat.id, user_id)
     else:
         bot.edit_message_text(
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -310,8 +314,7 @@ def my_results(call):
             message_id=call.message.message_id,
             parse_mode="Markdown"
         )
-    
-    send_new_menu(call.message.chat.id, user_id)
+        send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):

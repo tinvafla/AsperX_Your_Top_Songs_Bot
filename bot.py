@@ -358,7 +358,8 @@ def send_daily_report():
     
     bot.send_message(ADMIN_ID, report, parse_mode="Markdown")
 
-def create_daily_backup():
+def run_scheduler():
+    schedule.every().day.at("02:00").do(create_backup)
     while True:
         schedule.run_pending()
         time.sleep(60)
@@ -699,8 +700,4 @@ def my_results(call):
             
             bot.edit_message_text(
                 text,
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                parse_mode="Markdown"
-            )
-            send_new_menu(call.message.chat
+                chat_id=call.message

@@ -16,6 +16,7 @@ GLOBAL_RANKING_FILE = "global_ranking.json"
 USER_RESULTS_FILE = "user_results.json"
 
 user_states = {}
+last_message_ids = {}
 
 def load_json(file):
     if os.path.exists(file):
@@ -38,6 +39,14 @@ def get_user_exclude_status(user_id):
             return False
     return False
 
+def delete_previous_message(chat_id, user_id):
+    if user_id in last_message_ids:
+        try:
+            bot.delete_message(chat_id, last_message_ids[user_id])
+        except:
+            pass
+        del last_message_ids[user_id]
+
 def get_menu_keyboard(user_id):
     is_excluded = get_user_exclude_status(user_id)
     
@@ -55,22 +64,25 @@ def get_menu_keyboard(user_id):
     
     keyboard.add(types.InlineKeyboardButton("📖 ИСТОРИЯ СОЗДАНИЯ", callback_data="story"))
     keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
+    keyboard.add(types.InlineKeyboardButton("🔗 ПОДЕЛИТЬСЯ", callback_data="share"))
     
     return keyboard
 
 def send_new_menu(chat_id, user_id):
+    delete_previous_message(chat_id, user_id)
     keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
+    msg = bot.send_message(
         chat_id,
         "Выбери действие:",
         reply_markup=keyboard
     )
+    last_message_ids[user_id] = msg.message_id
 
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
     
-    bot.send_message(
+    msg = bot.send_message(
         message.chat.id,
         "🎵 <b>ASPER X · YOUR TOP SONGS</b>\n\n"
         "Перейди по ссылке, пройди опрос и получи свой топ!\n\n"
@@ -82,11 +94,35 @@ def start(message):
         "💬 Любая обратная связь приветствуется!",
         parse_mode="HTML"
     )
+    last_message_ids[user_id] = msg.message_id
     
     send_new_menu(message.chat.id, user_id)
 
+@bot.callback_query_handler(func=lambda call: call.data == "share")
+def share(call):
+    delete_previous_message(call.message.chat.id, call.from_user.id)
+    bot.answer_callback_query(call.id)
+    
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        types.InlineKeyboardButton("🔙 ВЕРНУТЬСЯ НАЗАД", callback_data="back_to_menu")
+    )
+    
+    msg = bot.send_message(
+        call.message.chat.id,
+        "🔗 **Пригласи друзей в ASPER X · YOUR TOP!**\n\n"
+        "Перейди по ссылке и пройди опрос:\n"
+        f"👉 {SITE_URL}?user_id={call.from_user.id}\n\n"
+        "Или просто поделись ботом: @AsperX_Your_Top_Songs_bot\n\n"
+        "Вместе составим лучший топ песен Asper X! 🎵",
+        parse_mode="Markdown",
+        reply_markup=keyboard
+    )
+    last_message_ids[call.from_user.id] = msg.message_id
+
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):
+    delete_previous_message(call.message.chat.id, call.from_user.id)
     bot.answer_callback_query(call.id)
     
     keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -95,7 +131,8 @@ def story(call):
         types.InlineKeyboardButton("🔙 ВЕРНУТЬСЯ НАЗАД", callback_data="back_to_menu")
     )
     
-    bot.edit_message_text(
+    msg = bot.send_message(
+        call.message.chat.id,
         "📖 **ИСТОРИЯ СОЗДАНИЯ**\n\n"
         "Привет! 👋\n\n"
         "Я tinvafla, или вафелька — как тебе удобнее. И я та самая, кто собрал этого бота на голом энтузиазме.\n\n"
@@ -109,10 +146,10 @@ def story(call):
         "Спасибо, что вы здесь. Что проходите опрос. Что помогаете делать этот рейтинг живым.\n\n"
         "Связаться со мной можно через функционал бота — я читаю всё 💬",
         chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
         parse_mode="Markdown",
         reply_markup=keyboard
     )
+    last_message_ids[call.from_user.id] = msg.message_id
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_to_menu(call):
@@ -134,12 +171,13 @@ def toggle_ranking(call):
             types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_toggle")
         )
         bot.answer_callback_query(call.id)
-        bot.edit_message_text(
+        delete_previous_message(call.message.chat.id, user_id)
+        msg = bot.send_message(
+            call.message.chat.id,
             "🔓 Ты уверен, что хочешь снова учитывать свои результаты в общем рейтинге?\n\nТвои голоса снова будут влиять на общий топ.",
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
             reply_markup=keyboard
         )
+        last_message_ids[user_id] = msg.message_id
     else:
         keyboard = types.InlineKeyboardMarkup(row_width=2)
         keyboard.add(
@@ -147,12 +185,13 @@ def toggle_ranking(call):
             types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_toggle")
         )
         bot.answer_callback_query(call.id)
-        bot.edit_message_text(
+        delete_previous_message(call.message.chat.id, user_id)
+        msg = bot.send_message(
+            call.message.chat.id,
             "🔒 Ты уверен, что хочешь исключить свои результаты из общего рейтинга?\n\nТвои голоса больше не будут влиять на общий топ.",
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
             reply_markup=keyboard
         )
+        last_message_ids[user_id] = msg.message_id
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_include")
 def confirm_include(call):
@@ -185,11 +224,12 @@ def confirm_include(call):
         save_json(USER_RESULTS_FILE, user_results)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    bot.edit_message_text(
-        "✅ Твои результаты снова учитываются в общем рейтинге.",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id
+    delete_previous_message(call.message.chat.id, user_id)
+    msg = bot.send_message(
+        call.message.chat.id,
+        "✅ Твои результаты снова учитываются в общем рейтинге."
     )
+    last_message_ids[user_id] = msg.message_id
     
     try:
         user = bot.get_chat(user_id)
@@ -198,13 +238,13 @@ def confirm_include(call):
             name += f" {user.last_name}"
         username = f"@{user.username}" if user.username else "не установлен"
         
-        msg = f"🔔 Пользователь снова учитывается в общем рейтинге\n\n"
-        msg += f"👤 Имя: {name}\n"
-        msg += f"🔗 Ник: {username}\n"
-        msg += f"🆔 ID: {user_id}\n\n"
-        msg += "Его баллы добавлены в общий рейтинг."
+        msg_admin = f"🔔 Пользователь снова учитывается в общем рейтинге\n\n"
+        msg_admin += f"👤 Имя: {name}\n"
+        msg_admin += f"🔗 Ник: {username}\n"
+        msg_admin += f"🆔 ID: {user_id}\n\n"
+        msg_admin += "Его баллы добавлены в общий рейтинг."
         
-        bot.send_message(ADMIN_ID, msg)
+        bot.send_message(ADMIN_ID, msg_admin)
     except:
         pass
     
@@ -241,11 +281,12 @@ def confirm_exclude(call):
         save_json(USER_RESULTS_FILE, user_results)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    bot.edit_message_text(
-        "✅ Твои результаты исключены из общего рейтинга.",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id
+    delete_previous_message(call.message.chat.id, user_id)
+    msg = bot.send_message(
+        call.message.chat.id,
+        "✅ Твои результаты исключены из общего рейтинга."
     )
+    last_message_ids[user_id] = msg.message_id
     
     try:
         user = bot.get_chat(user_id)
@@ -254,13 +295,13 @@ def confirm_exclude(call):
             name += f" {user.last_name}"
         username = f"@{user.username}" if user.username else "не установлен"
         
-        msg = f"🔔 Пользователь исключил себя из общего рейтинга\n\n"
-        msg += f"👤 Имя: {name}\n"
-        msg += f"🔗 Ник: {username}\n"
-        msg += f"🆔 ID: {user_id}\n\n"
-        msg += "Его баллы удалены из общего рейтинга."
+        msg_admin = f"🔔 Пользователь исключил себя из общего рейтинга\n\n"
+        msg_admin += f"👤 Имя: {name}\n"
+        msg_admin += f"🔗 Ник: {username}\n"
+        msg_admin += f"🆔 ID: {user_id}\n\n"
+        msg_admin += "Его баллы удалены из общего рейтинга."
         
-        bot.send_message(ADMIN_ID, msg)
+        bot.send_message(ADMIN_ID, msg_admin)
     except:
         pass
     
@@ -291,30 +332,32 @@ def my_results(call):
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
             
+            delete_previous_message(call.message.chat.id, user_id)
             keyboard = get_menu_keyboard(user_id)
-            
-            bot.edit_message_text(
+            msg = bot.send_message(
+                call.message.chat.id,
                 text,
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
                 parse_mode="Markdown",
                 reply_markup=keyboard
             )
+            last_message_ids[user_id] = msg.message_id
         else:
-            bot.edit_message_text(
+            delete_previous_message(call.message.chat.id, user_id)
+            msg = bot.send_message(
+                call.message.chat.id,
                 "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
+            last_message_ids[user_id] = msg.message_id
             send_new_menu(call.message.chat.id, user_id)
     else:
-        bot.edit_message_text(
+        delete_previous_message(call.message.chat.id, user_id)
+        msg = bot.send_message(
+            call.message.chat.id,
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
             parse_mode="Markdown"
         )
+        last_message_ids[user_id] = msg.message_id
         send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
@@ -324,12 +367,13 @@ def write_author(call):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_author"))
     bot.answer_callback_query(call.id)
-    bot.edit_message_text(
+    delete_previous_message(call.message.chat.id, user_id)
+    msg = bot.send_message(
+        call.message.chat.id,
         "📝 Напиши своё пожелание, вопрос или отзыв.\n\nЯ передам это автору.",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
         reply_markup=keyboard
     )
+    last_message_ids[user_id] = msg.message_id
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_author")
 def cancel_author(call):
@@ -346,11 +390,12 @@ def show_ranking_callback(call):
     
     data = load_json(GLOBAL_RANKING_FILE)
     if not data:
-        bot.edit_message_text(
-            "📊 Пока нет голосов. Будь первым!",
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id
+        delete_previous_message(call.message.chat.id, user_id)
+        msg = bot.send_message(
+            call.message.chat.id,
+            "📊 Пока нет голосов. Будь первым!"
         )
+        last_message_ids[user_id] = msg.message_id
         send_new_menu(call.message.chat.id, user_id)
         return
 
@@ -375,12 +420,13 @@ def show_ranking_callback(call):
         if i >= 20:
             break
     
-    bot.edit_message_text(
+    delete_previous_message(call.message.chat.id, user_id)
+    msg = bot.send_message(
+        call.message.chat.id,
         text,
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
         parse_mode="Markdown"
     )
+    last_message_ids[user_id] = msg.message_id
     
     send_new_menu(call.message.chat.id, user_id)
 
@@ -405,11 +451,13 @@ def reply_to_user(call):
         username = f"@{user.username}" if user.username else f"ID: {user_id}"
         
         bot.answer_callback_query(call.id)
-        bot.send_message(
+        delete_previous_message(call.message.chat.id, admin_id)
+        msg = bot.send_message(
             call.message.chat.id,
             f"✏️ Ответ для {username}:\n\nНапиши своё сообщение, и я передам его пользователю.",
             reply_markup=keyboard
         )
+        last_message_ids[admin_id] = msg.message_id
     except:
         bot.answer_callback_query(call.id, "❌ Ошибка")
 
@@ -419,8 +467,7 @@ def cancel_reply(call):
     if admin_id in user_states:
         del user_states[admin_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
+    send_new_menu(call.message.chat.id, admin_id)
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):

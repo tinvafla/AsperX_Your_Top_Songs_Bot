@@ -84,18 +84,17 @@ def save_results():
             return jsonify({"status": "error", "message": "No top_90"}), 400
 
         user_results = load_json(USER_RESULTS_FILE)
+        global_ranking = load_json(GLOBAL_RANKING_FILE)
+        points = [5, 3, 1]
         
         if user_id in user_results:
             old_top_90 = user_results[user_id]
             old_top_3 = old_top_90[:3]
-            global_ranking = load_json(GLOBAL_RANKING_FILE)
-            points = [5, 3, 1]
             for idx, (song, _) in enumerate(old_top_3):
                 if song in global_ranking:
                     global_ranking[song] -= points[idx]
                     if global_ranking[song] <= 0:
                         del global_ranking[song]
-            save_json(GLOBAL_RANKING_FILE, global_ranking)
         
         user_results[user_id] = top_90
         save_json(USER_RESULTS_FILE, user_results)
@@ -120,8 +119,6 @@ def save_results():
         except Exception as e:
             print(f"❌ Ошибка отправки админу: {e}")
 
-        global_ranking = load_json(GLOBAL_RANKING_FILE)
-        points = [5, 3, 1]
         for idx, (song, _) in enumerate(top_90[:3]):
             if song in global_ranking:
                 global_ranking[song] += points[idx]
@@ -162,4 +159,4 @@ def run_flask():
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     print("🤖 Бот и сервер запущены...")
-    bot.polling(none_stop=True)
+    bot.polling(none_stop=True)    

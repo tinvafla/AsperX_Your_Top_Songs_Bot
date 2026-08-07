@@ -1,4 +1,3 @@
-python
 import telebot
 from telebot import types
 import json
@@ -78,7 +77,7 @@ def start(message):
         "\n"
         "│ У меня, может, и нет мозгов, господа, но у меня есть идея.\n"
         "\n"
-        "Любая обратная связь — в радость!",
+        "💬 Любая обратная связь приветствуется!",
         parse_mode="Markdown"
     )
     
@@ -545,4 +544,3 @@ if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     print("🤖 Бот и сервер запущены...")
     bot.polling(none_stop=True)
-```

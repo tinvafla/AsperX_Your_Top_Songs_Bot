@@ -15,6 +15,8 @@ SITE_URL = "https://asperxyourtopsongs.netlify.app/"
 GLOBAL_RANKING_FILE = "global_ranking.json"
 USER_RESULTS_FILE = "user_results.json"
 
+user_states = {}
+
 def load_json(file):
     if os.path.exists(file):
         with open(file, "r", encoding="utf-8") as f:
@@ -32,16 +34,175 @@ def start(message):
     keyboard.add(
         types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
         types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results"),
-        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
+        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking"),
+        types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"),
+        types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author")
     )
     bot.send_message(
         message.chat.id,
         "🎵 **ASPER X · YOUR TOP**\n\n"
         "Перейди по ссылке, пройди опрос и получи свой топ!\n\n"
-        "После завершения нажми **«Вернуться в бота»** или **«Мои результаты»**, чтобы получить свой топ.",
+        "После завершения нажми **«Вернуться в бота»** или **«Мои результаты»**, чтобы получить свой топ.\n\n"
+        "⏳ Тест займёт ~3–5 минут в зависимости от твоих решений.\n\n"
+        "🛠️ Всё сделано на чистом энтузиазме, без опыта, но с любовью.\n"
+        "Профессионализма не нашлось — вложила душу.\n"
+        "Любая обратная связь — в радость!",
         parse_mode="Markdown",
         reply_markup=keyboard
     )
+
+@bot.callback_query_handler(func=lambda call: call.data == "write_author")
+def write_author(call):
+    user_id = call.from_user.id
+    user_states[user_id] = "waiting_for_author_message"
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_author"))
+    bot.answer_callback_query(call.id)
+    bot.send_message(
+        call.message.chat.id,
+        "📝 Напиши своё пожелание, вопрос или отзыв.\n\nЯ передам это автору.",
+        reply_markup=keyboard
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "cancel_author")
+def cancel_author(call):
+    user_id = call.from_user.id
+    if user_id in user_states:
+        del user_states[user_id]
+    bot.answer_callback_query(call.id, "❌ Отменено")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.message.chat.id, "❌ Действие отменено.")
+
+@bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
+def toggle_ranking(call):
+    user_id = call.from_user.id
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    
+    if user_id_str not in user_results:
+        bot.answer_callback_query(call.id, "❌ Ты ещё не проходил опрос!")
+        return
+    
+    is_excluded = user_results[user_id_str].get("exclude_from_ranking", False)
+    
+    if is_excluded:
+        keyboard = types.InlineKeyboardMarkup(row_width=2)
+        keyboard.add(
+            types.InlineKeyboardButton("✅ ДА, УЧИТЫВАТЬ", callback_data="confirm_include"),
+            types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_toggle")
+        )
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            "🔓 Ты уверен, что хочешь снова учитывать свои результаты в общем рейтинге?\n\nТвои голоса снова будут влиять на общий топ.",
+            reply_markup=keyboard
+        )
+    else:
+        keyboard = types.InlineKeyboardMarkup(row_width=2)
+        keyboard.add(
+            types.InlineKeyboardButton("✅ ДА, НЕ УЧИТЫВАТЬ", callback_data="confirm_exclude"),
+            types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_toggle")
+        )
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            "🔒 Ты уверен, что хочешь исключить свои результаты из общего рейтинга?\n\nТвои голоса больше не будут влиять на общий топ.",
+            reply_markup=keyboard
+        )
+
+@bot.callback_query_handler(func=lambda call: call.data == "confirm_include")
+def confirm_include(call):
+    user_id = call.from_user.id
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    global_ranking = load_json(GLOBAL_RANKING_FILE)
+    points = [5, 3, 1]
+    
+    if user_id_str in user_results:
+        user_results[user_id_str]["exclude_from_ranking"] = False
+        top_90 = user_results[user_id_str]
+        for idx, (song, _) in enumerate(top_90[:3]):
+            if song in global_ranking:
+                global_ranking[song] += points[idx]
+            else:
+                global_ranking[song] = points[idx]
+        save_json(GLOBAL_RANKING_FILE, global_ranking)
+        save_json(USER_RESULTS_FILE, user_results)
+    
+    bot.answer_callback_query(call.id, "✅ Готово!")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(
+        call.message.chat.id,
+        "✅ Твои результаты снова учитываются в общем рейтинге.\n\n"
+        "Ты можешь изменить это в любое время через меню."
+    )
+    
+    try:
+        user = bot.get_chat(user_id)
+        name = user.first_name
+        if user.last_name:
+            name += f" {user.last_name}"
+        username = f"@{user.username}" if user.username else "не установлен"
+        
+        msg = f"🔔 Пользователь снова учитывается в общем рейтинге\n\n"
+        msg += f"👤 Имя: {name}\n"
+        msg += f"🔗 Ник: {username}\n"
+        msg += f"🆔 ID: {user_id}\n\n"
+        msg += "Его баллы добавлены в общий рейтинг."
+        
+        bot.send_message(ADMIN_ID, msg)
+    except:
+        pass
+
+@bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
+def confirm_exclude(call):
+    user_id = call.from_user.id
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    global_ranking = load_json(GLOBAL_RANKING_FILE)
+    points = [5, 3, 1]
+    
+    if user_id_str in user_results:
+        user_results[user_id_str]["exclude_from_ranking"] = True
+        top_90 = user_results[user_id_str]
+        for idx, (song, _) in enumerate(top_90[:3]):
+            if song in global_ranking:
+                global_ranking[song] -= points[idx]
+                if global_ranking[song] <= 0:
+                    del global_ranking[song]
+        save_json(GLOBAL_RANKING_FILE, global_ranking)
+        save_json(USER_RESULTS_FILE, user_results)
+    
+    bot.answer_callback_query(call.id, "✅ Готово!")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(
+        call.message.chat.id,
+        "✅ Твои результаты исключены из общего рейтинга.\n\n"
+        "Ты можешь вернуть их в любое время через меню."
+    )
+    
+    try:
+        user = bot.get_chat(user_id)
+        name = user.first_name
+        if user.last_name:
+            name += f" {user.last_name}"
+        username = f"@{user.username}" if user.username else "не установлен"
+        
+        msg = f"🔔 Пользователь исключил себя из общего рейтинга\n\n"
+        msg += f"👤 Имя: {name}\n"
+        msg += f"🔗 Ник: {username}\n"
+        msg += f"🆔 ID: {user_id}\n\n"
+        msg += "Его баллы удалены из общего рейтинга."
+        
+        bot.send_message(ADMIN_ID, msg)
+    except:
+        pass
+
+@bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
+def cancel_toggle(call):
+    bot.answer_callback_query(call.id, "❌ Отменено")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.message.chat.id, "❌ Действие отменено.")
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -102,7 +263,14 @@ def save_results():
                     if global_ranking[song] <= 0:
                         del global_ranking[song]
         
-        user_results[user_id] = top_90
+        if user_id in user_results and isinstance(user_results[user_id], dict):
+            exclude_flag = user_results[user_id].get("exclude_from_ranking", False)
+            user_results[user_id] = top_90
+            if exclude_flag:
+                user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": True}
+        else:
+            user_results[user_id] = top_90
+        
         save_json(USER_RESULTS_FILE, user_results)
         print("✅ Результаты сохранены для:", user_id)
 
@@ -117,27 +285,137 @@ def save_results():
                 print(f"❌ Ошибка отправки пользователю: {e}")
 
         try:
-            text = f"📊 **Новый топ-3 от {user_id}**\n\n"
+            user = bot.get_chat(int(user_id))
+            name = user.first_name
+            if user.last_name:
+                name += f" {user.last_name}"
+            username = f"@{user.username}" if user.username else "не установлен"
+            
+            text = f"📊 **Новый топ-3 от {name}**\n\n"
+            text += f"👤 Имя: {name}\n"
+            text += f"🔗 Ник: {username}\n"
+            text += f"🆔 ID: {user_id}\n\n"
             for i, (song, score) in enumerate(top_90[:3], 1):
                 text += f"{i}. {song}\n"
-            bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+            
+            keyboard = types.InlineKeyboardMarkup(row_width=1)
+            keyboard.add(types.InlineKeyboardButton("📩 ОТВЕТИТЬ", callback_data=f"reply_{user_id}"))
+            
+            bot.send_message(ADMIN_ID, text, parse_mode="Markdown", reply_markup=keyboard)
             print("✅ Топ-3 отправлен админу")
         except Exception as e:
             print(f"❌ Ошибка отправки админу: {e}")
 
-        for idx, (song, _) in enumerate(top_90[:3]):
-            if song in global_ranking:
-                global_ranking[song] += points[idx]
-            else:
-                global_ranking[song] = points[idx]
-        save_json(GLOBAL_RANKING_FILE, global_ranking)
-        print("✅ Общий рейтинг обновлён")
+        exclude_flag = False
+        if user_id in user_results and isinstance(user_results[user_id], dict):
+            exclude_flag = user_results[user_id].get("exclude_from_ranking", False)
+        
+        if not exclude_flag:
+            for idx, (song, _) in enumerate(top_90[:3]):
+                if song in global_ranking:
+                    global_ranking[song] += points[idx]
+                else:
+                    global_ranking[song] = points[idx]
+            save_json(GLOBAL_RANKING_FILE, global_ranking)
+            print("✅ Общий рейтинг обновлён")
+        else:
+            print("ℹ️ Пользователь исключён из общего рейтинга")
 
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
         print("❌ ОШИБКА:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
+def reply_to_user(call):
+    user_id = call.data.replace("reply_", "")
+    admin_id = call.from_user.id
+    
+    if admin_id != int(ADMIN_ID):
+        bot.answer_callback_query(call.id, "❌ У вас нет прав!")
+        return
+    
+    user_states[admin_id] = f"reply_{user_id}"
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_reply"))
+    
+    try:
+        user = bot.get_chat(int(user_id))
+        name = user.first_name
+        if user.last_name:
+            name += f" {user.last_name}"
+        username = f"@{user.username}" if user.username else f"ID: {user_id}"
+        
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            f"✏️ Ответ для {username}:\n\nНапиши своё сообщение, и я передам его пользователю.",
+            reply_markup=keyboard
+        )
+    except:
+        bot.answer_callback_query(call.id, "❌ Ошибка")
+
+@bot.callback_query_handler(func=lambda call: call.data == "cancel_reply")
+def cancel_reply(call):
+    admin_id = call.from_user.id
+    if admin_id in user_states:
+        del user_states[admin_id]
+    bot.answer_callback_query(call.id, "❌ Отменено")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
+
+@bot.message_handler(func=lambda message: True)
+def handle_messages(message):
+    user_id = message.from_user.id
+    
+    if user_id in user_states:
+        state = user_states[user_id]
+        
+        if state == "waiting_for_author_message":
+            if not message.text or message.text.strip() == "":
+                bot.reply_to(message, "❌ Сообщение не может быть пустым. Напиши что-нибудь.")
+                return
+            
+            try:
+                user = bot.get_chat(user_id)
+                name = user.first_name
+                if user.last_name:
+                    name += f" {user.last_name}"
+                username = f"@{user.username}" if user.username else "не установлен"
+                
+                msg = f"✉️ **Новое сообщение от пользователя**\n\n"
+                msg += f"👤 Имя: {name}\n"
+                msg += f"🔗 Ник: {username}\n"
+                msg += f"🆔 ID: {user_id}\n\n"
+                msg += f"📝 Текст:\n{message.text}"
+                
+                keyboard = types.InlineKeyboardMarkup(row_width=1)
+                keyboard.add(types.InlineKeyboardButton("📩 ОТВЕТИТЬ", callback_data=f"reply_{user_id}"))
+                
+                bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
+                bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
+                del user_states[user_id]
+            except Exception as e:
+                bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
+                print(f"Ошибка: {e}")
+        
+        elif state.startswith("reply_"):
+            target_user_id = state.replace("reply_", "")
+            if not message.text or message.text.strip() == "":
+                bot.reply_to(message, "❌ Сообщение не может быть пустым.")
+                return
+            
+            try:
+                bot.send_message(
+                    int(target_user_id),
+                    f"✉️ **Сообщение от автора:**\n\n{message.text}"
+                )
+                bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
+                del user_states[user_id]
+            except Exception as e:
+                bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
+                print(f"Ошибка: {e}")
 
 @bot.message_handler(commands=['ranking'])
 def ranking(message):
@@ -147,7 +425,7 @@ def ranking(message):
         return
 
     user_results = load_json(USER_RESULTS_FILE)
-    voters_count = len(user_results)
+    voters_count = len([u for u in user_results.values() if not (isinstance(u, dict) and u.get("exclude_from_ranking", False))])
 
     sorted_songs = sorted(data.items(), key=lambda x: x[1], reverse=True)
     text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"

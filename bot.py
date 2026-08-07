@@ -7,7 +7,7 @@ import threading
 from flask_cors import CORS
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
-ADMIN_ID = "ТВОЙ_TELEGRAM_ID"
+ADMIN_ID = "832018497"
 bot = telebot.TeleBot(TOKEN)
 
 SITE_URL = "https://asperxyourtopsongs.netlify.app/"
@@ -31,7 +31,8 @@ def start(message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
         types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
-        types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results")
+        types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results"),
+        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
     bot.send_message(
         message.chat.id,
@@ -63,6 +64,11 @@ def my_results(call):
             "Перейди по ссылке и пройди опрос, чтобы получить свой топ.",
             parse_mode="Markdown"
         )
+
+@bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
+def show_ranking_callback(call):
+    bot.answer_callback_query(call.id)
+    ranking(call.message)
 
 app = Flask(__name__)
 CORS(app)
@@ -159,4 +165,4 @@ def run_flask():
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
     print("🤖 Бот и сервер запущены...")
-    bot.polling(none_stop=True)    
+    bot.polling(none_stop=True)

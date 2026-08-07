@@ -97,6 +97,16 @@ def update_stats(user_id, action):
             "actions": {}
         }
         
+        try:
+            user = bot.get_chat(int(user_id))
+            name = user.first_name
+            if user.last_name:
+                name += f" {user.last_name}"
+            username = f"@{user.username}" if user.username else "не установлен"
+            bot.send_message(ADMIN_ID, f"👤 Новый пользователь!\n\nИмя: {name}\nНик: {username}\nID: {user_id}\n\nНачал диалог с ботом.")
+        except:
+            bot.send_message(ADMIN_ID, f"👤 Новый пользователь!\n\nID: {user_id}\n\nНачал диалог с ботом.")
+        
         total_users = len(stats["users"])
         for achievement in ACHIEVEMENTS:
             if total_users == achievement["count"] and str(achievement["count"]) not in stats["achievements"]:

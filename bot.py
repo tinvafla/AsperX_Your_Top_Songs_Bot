@@ -85,8 +85,14 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):
     bot.answer_callback_query(call.id)
-    bot.send_message(
-        call.message.chat.id,
+    
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(
+        types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"),
+        types.InlineKeyboardButton("🔙 ВЕРНУТЬСЯ НАЗАД", callback_data="back_to_menu")
+    )
+    
+    bot.edit_message_text(
         "📖 **ИСТОРИЯ СОЗДАНИЯ**\n\n"
         "Привет! 👋\n\n"
         "Я tinvafla, или вафелька — как тебе удобнее. И я та самая, кто собрал этого бота на голом энтузиазме.\n\n"
@@ -95,12 +101,20 @@ def story(call):
         "У меня не было опыта. Вообще. Ни строчки кода до этого. Но были нейросети, пара свободных вечеров и огромное желание. Так появился этот бот и сайт. С нуля, с идеей, с багами и с любовью.\n\n"
         "Собрала 90 песен Asper X — ровно столько, сколько нашла. Если что-то пропустила — пиши, исправлюсь! Здесь только основной проект, без RetroElektro и других ответвлений, хотя они тоже крутые и, надеюсь, до них руки дойдут тоже.\n\n"
         "В мечтах — добавить короткие превью к песням (секунд по 5), чтобы можно было вспомнить трек, если название не говорит само за себя. Но тут сложность с авторскими правами, поэтому пока не готова. Если этот бот найдёт отклик у аудитории — я вернусь к этой идее.\n\n"
-        "Версия 1.0 — тестовая. Проверяю, заходит ли такой формат, и очень переживаю, чтобы обновления не сломали уже собранные результаты 🤞\n\n"
-        "Всё это сделано из искренней любви к творчеству группы Asper X и Тима Эрны. Гиперфиксации нейроотличных умных людей творят чудеса. Очень жду 27 октября, чтобы выразить свою любовь вживую 🤞\n\n"
+        "Версия 1.0 — тестовая. Проверяю, заходит ли такой формат, и очень переживаю, чтобы обновления не сломали уже собранные результаты 🫶\n\n"
+        "Всё это сделано из искренней любви к творчеству группы Asper X и Тима Эрны. Гиперфиксации нейроотличных умных людей творят чудеса. Очень жду 27 октября, чтобы выразить свою любовь вживую 🫶\n\n"
         "Спасибо, что вы здесь. Что проходите опрос. Что помогаете делать этот рейтинг живым.\n\n"
         "Связаться со мной можно через функционал бота — я читаю всё 💬",
-        parse_mode="Markdown"
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        parse_mode="Markdown",
+        reply_markup=keyboard
     )
+
+@bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
+def back_to_menu(call):
+    bot.answer_callback_query(call.id)
+    send_new_menu(call.message.chat.id, call.from_user.id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):

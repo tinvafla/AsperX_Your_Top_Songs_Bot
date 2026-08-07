@@ -1,4 +1,6 @@
 pyTelegramBotAPI
 Flask
 Flask-CORS
+gramdb
+cryptg
 

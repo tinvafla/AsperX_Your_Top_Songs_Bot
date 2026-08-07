@@ -247,6 +247,7 @@ def help_command(message):
 /stats - Статистика бота
 /help - Эта справка
 /export - Экспорт всех данных (бэкап)
+/import - Импорт данных из бэкапа (пришли файл)
 /announce - Сделать рассылку всем пользователям
 
 **📊 Статистика показывает:**
@@ -260,6 +261,7 @@ def help_command(message):
 
 **💾 Бэкап:**
 /export - создаёт JSON файл со всеми данными
+/import - восстановить данные из бэкапа
 
 **🎵 Песня дня:**
 Доступна в меню бота. Показывает случайную песню из списка.
@@ -353,6 +355,45 @@ def export_data(message):
         bot.reply_to(message, "✅ Бэкап отправлен!")
     except Exception as e:
         bot.reply_to(message, f"❌ Ошибка: {str(e)}")
+
+@bot.message_handler(commands=['import'])
+def import_command(message):
+    if message.from_user.id != int(ADMIN_ID):
+        bot.reply_to(message, "⛔ У вас нет прав на эту команду.")
+        return
+    
+    bot.reply_to(message, "📤 Отправь JSON файл с бэкапом (файл, который получил через /export)")
+    user_states[message.from_user.id] = "waiting_for_import"
+
+@bot.message_handler(content_types=['document'])
+def handle_document(message):
+    user_id = message.from_user.id
+    
+    if user_id in user_states and user_states[user_id] == "waiting_for_import":
+        if message.from_user.id != int(ADMIN_ID):
+            return
+        
+        try:
+            file_info = bot.get_file(message.document.file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+            
+            data = json.loads(downloaded_file.decode('utf-8'))
+            
+            if "users" in data:
+                save_json(USER_RESULTS_FILE, data["users"])
+            if "global_ranking" in data:
+                save_json(GLOBAL_RANKING_FILE, data["global_ranking"])
+            if "stats" in data:
+                save_json(STATS_FILE, data["stats"])
+            
+            bot.reply_to(message, "✅ Данные успешно восстановлены из бэкапа!")
+            
+            del user_states[user_id]
+            
+        except json.JSONDecodeError:
+            bot.reply_to(message, "❌ Ошибка: файл не является корректным JSON")
+        except Exception as e:
+            bot.reply_to(message, f"❌ Ошибка при импорте: {str(e)}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):

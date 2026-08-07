@@ -71,11 +71,13 @@ def get_menu_keyboard(user_id):
     
     return keyboard
 
-def send_new_menu(chat_id, user_id):
+def update_menu_message(call):
+    user_id = call.from_user.id
     keyboard = get_menu_keyboard(user_id)
-    bot.send_message(
-        chat_id,
+    bot.edit_message_text(
         "Выбери действие:",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
         reply_markup=keyboard
     )
 
@@ -96,7 +98,12 @@ def start(message):
         parse_mode="HTML"
     )
     
-    send_new_menu(message.chat.id, user_id)
+    keyboard = get_menu_keyboard(user_id)
+    bot.send_message(
+        message.chat.id,
+        "Выбери действие:",
+        reply_markup=keyboard
+    )
 
 @bot.message_handler(commands=['export'])
 def export_data(message):
@@ -155,7 +162,7 @@ def story(call):
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_to_menu(call):
     bot.answer_callback_query(call.id)
-    send_new_menu(call.message.chat.id, call.from_user.id)
+    update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):
@@ -217,30 +224,7 @@ def confirm_include(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    bot.edit_message_text(
-        "✅ Твои результаты снова учитываются в общем рейтинге.",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id
-    )
-    
-    try:
-        user = bot.get_chat(user_id)
-        name = user.first_name
-        if user.last_name:
-            name += f" {user.last_name}"
-        username = f"@{user.username}" if user.username else "не установлен"
-        
-        msg = f"🔔 Пользователь снова учитывается в общем рейтинге\n\n"
-        msg += f"👤 Имя: {name}\n"
-        msg += f"🔗 Ник: {username}\n"
-        msg += f"🆔 ID: {user_id}\n\n"
-        msg += "Его баллы добавлены в общий рейтинг."
-        
-        bot.send_message(ADMIN_ID, msg)
-    except:
-        pass
-    
-    send_new_menu(call.message.chat.id, user_id)
+    update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -269,35 +253,12 @@ def confirm_exclude(call):
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
-    bot.edit_message_text(
-        "✅ Твои результаты исключены из общего рейтинга.",
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id
-    )
-    
-    try:
-        user = bot.get_chat(user_id)
-        name = user.first_name
-        if user.last_name:
-            name += f" {user.last_name}"
-        username = f"@{user.username}" if user.username else "не установлен"
-        
-        msg = f"🔔 Пользователь исключил себя из общего рейтинга\n\n"
-        msg += f"👤 Имя: {name}\n"
-        msg += f"🔗 Ник: {username}\n"
-        msg += f"🆔 ID: {user_id}\n\n"
-        msg += "Его баллы удалены из общего рейтинга."
-        
-        bot.send_message(ADMIN_ID, msg)
-    except:
-        pass
-    
-    send_new_menu(call.message.chat.id, user_id)
+    update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    send_new_menu(call.message.chat.id, call.from_user.id)
+    update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -319,14 +280,13 @@ def my_results(call):
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
             
-            keyboard = get_menu_keyboard(user_id)
             bot.edit_message_text(
                 text,
                 chat_id=call.message.chat.id,
                 message_id=call.message.message_id,
-                parse_mode="Markdown",
-                reply_markup=keyboard
+                parse_mode="Markdown"
             )
+            update_menu_message(call)
         else:
             bot.edit_message_text(
                 "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -334,7 +294,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            send_new_menu(call.message.chat.id, user_id)
+            update_menu_message(call)
     else:
         bot.edit_message_text(
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -342,7 +302,7 @@ def my_results(call):
             message_id=call.message.message_id,
             parse_mode="Markdown"
         )
-        send_new_menu(call.message.chat.id, user_id)
+        update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -364,7 +324,7 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    send_new_menu(call.message.chat.id, user_id)
+    update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -378,7 +338,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        send_new_menu(call.message.chat.id, user_id)
+        update_menu_message(call)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -409,7 +369,7 @@ def show_ranking_callback(call):
         parse_mode="Markdown"
     )
     
-    send_new_menu(call.message.chat.id, user_id)
+    update_menu_message(call)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -448,6 +408,7 @@ def cancel_reply(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
     bot.delete_message(call.message.chat.id, call.message.message_id)
     bot.send_message(call.message.chat.id, "❌ Отправка отменена.")
+    update_menu_message(call)
 
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
@@ -480,7 +441,13 @@ def handle_messages(message):
                 bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
                 bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
                 del user_states[user_id]
-                send_new_menu(message.chat.id, user_id)
+                
+                keyboard_menu = get_menu_keyboard(user_id)
+                bot.send_message(
+                    message.chat.id,
+                    "Выбери действие:",
+                    reply_markup=keyboard_menu
+                )
             except Exception as e:
                 bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
                 print(f"Ошибка: {e}")
@@ -498,7 +465,13 @@ def handle_messages(message):
                 )
                 bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
                 del user_states[user_id]
-                send_new_menu(message.chat.id, user_id)
+                
+                keyboard_menu = get_menu_keyboard(user_id)
+                bot.send_message(
+                    message.chat.id,
+                    "Выбери действие:",
+                    reply_markup=keyboard_menu
+                )
             except Exception as e:
                 bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
                 print(f"Ошибка: {e}")

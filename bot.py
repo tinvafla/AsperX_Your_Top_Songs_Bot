@@ -4,6 +4,7 @@ import json
 import os
 from flask import Flask, request, jsonify
 import threading
+from flask_cors import CORS
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "ТВОЙ_TELEGRAM_ID"
@@ -66,20 +67,28 @@ def my_results(call):
         )
 
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/save_results', methods=['POST'])
 def save_results():
     try:
         data = request.get_json()
+        print("📥 ПОЛУЧЕНЫ ДАННЫЕ:", data)
+        
         user_id = data.get('user_id', 'anonymous')
         top_90 = data.get('top_90', [])
+        
+        print("👤 user_id:", user_id)
+        print("📊 Количество песен в top_90:", len(top_90))
 
         if not top_90:
+            print("❌ top_90 пустой!")
             return jsonify({"status": "error", "message": "No top_90"}), 400
 
         user_results = load_json(USER_RESULTS_FILE)
         user_results[user_id] = top_90
         save_json(USER_RESULTS_FILE, user_results)
+        print("✅ Результаты сохранены для:", user_id)
 
         if user_id != 'anonymous':
             try:
@@ -89,16 +98,18 @@ def save_results():
                 if len(top_90) > 10:
                     text += f"\n... и ещё {len(top_90) - 10} песен"
                 bot.send_message(int(user_id), text, parse_mode="Markdown")
+                print("✅ Топ отправлен пользователю:", user_id)
             except Exception as e:
-                print(f"Ошибка отправки пользователю: {e}")
+                print(f"❌ Ошибка отправки пользователю: {e}")
 
         try:
             text = f"📊 **Новый топ-3 от {user_id}**\n\n"
             for i, (song, score) in enumerate(top_90[:3], 1):
                 text += f"{i}. {song} — {score} ⭐\n"
             bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+            print("✅ Топ-3 отправлен админу")
         except Exception as e:
-            print(f"Ошибка отправки админу: {e}")
+            print(f"❌ Ошибка отправки админу: {e}")
 
         global_ranking = load_json(GLOBAL_RANKING_FILE)
         points = [5, 3, 1]
@@ -108,10 +119,12 @@ def save_results():
             else:
                 global_ranking[song] = points[idx]
         save_json(GLOBAL_RANKING_FILE, global_ranking)
+        print("✅ Общий рейтинг обновлён")
 
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
+        print("❌ ОШИБКА:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @bot.message_handler(commands=['ranking'])

@@ -55,27 +55,10 @@ def get_menu_keyboard(user_id):
     
     return keyboard
 
-def send_menu(chat_id, user_id, edit_message_id=None):
-    keyboard = get_menu_keyboard(user_id)
-    text = "Выбери действие:"
-    
-    if edit_message_id:
-        bot.edit_message_text(
-            text,
-            chat_id=chat_id,
-            message_id=edit_message_id,
-            reply_markup=keyboard
-        )
-    else:
-        bot.send_message(
-            chat_id,
-            text,
-            reply_markup=keyboard
-        )
-
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
+    keyboard = get_menu_keyboard(user_id)
     
     bot.send_message(
         message.chat.id,
@@ -86,10 +69,9 @@ def start(message):
         "🛠️ Всё сделано на чистом энтузиазме, без опыта, но с любовью.\n"
         "Профессионализма не нашлось — вложила душу.\n"
         "Любая обратная связь — в радость!",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=keyboard
     )
-    
-    send_menu(message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):
@@ -186,7 +168,12 @@ def confirm_include(call):
     except:
         pass
     
-    send_menu(call.message.chat.id, user_id)
+    keyboard = get_menu_keyboard(user_id)
+    bot.send_message(
+        call.message.chat.id,
+        "Выбери действие:",
+        reply_markup=keyboard
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
@@ -242,12 +229,22 @@ def confirm_exclude(call):
     except:
         pass
     
-    send_menu(call.message.chat.id, user_id)
+    keyboard = get_menu_keyboard(user_id)
+    bot.send_message(
+        call.message.chat.id,
+        "Выбери действие:",
+        reply_markup=keyboard
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
     bot.answer_callback_query(call.id, "❌ Отменено")
-    send_menu(call.message.chat.id, call.from_user.id)
+    keyboard = get_menu_keyboard(call.from_user.id)
+    bot.edit_message_reply_markup(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        reply_markup=keyboard
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -289,7 +286,12 @@ def my_results(call):
             parse_mode="Markdown"
         )
     
-    send_menu(call.message.chat.id, user_id)
+    keyboard = get_menu_keyboard(user_id)
+    bot.send_message(
+        call.message.chat.id,
+        "Выбери действие:",
+        reply_markup=keyboard
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -311,7 +313,12 @@ def cancel_author(call):
     if user_id in user_states:
         del user_states[user_id]
     bot.answer_callback_query(call.id, "❌ Отменено")
-    send_menu(call.message.chat.id, user_id)
+    keyboard = get_menu_keyboard(user_id)
+    bot.edit_message_reply_markup(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        reply_markup=keyboard
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -325,7 +332,12 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        send_menu(call.message.chat.id, user_id)
+        keyboard = get_menu_keyboard(user_id)
+        bot.send_message(
+            call.message.chat.id,
+            "Выбери действие:",
+            reply_markup=keyboard
+        )
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -355,7 +367,13 @@ def show_ranking_callback(call):
         message_id=call.message.message_id,
         parse_mode="Markdown"
     )
-    send_menu(call.message.chat.id, user_id)
+    
+    keyboard = get_menu_keyboard(user_id)
+    bot.send_message(
+        call.message.chat.id,
+        "Выбери действие:",
+        reply_markup=keyboard
+    )
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -426,7 +444,13 @@ def handle_messages(message):
                 bot.send_message(ADMIN_ID, msg, parse_mode="Markdown", reply_markup=keyboard)
                 bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
                 del user_states[user_id]
-                send_menu(message.chat.id, user_id)
+                
+                menu_keyboard = get_menu_keyboard(user_id)
+                bot.send_message(
+                    message.chat.id,
+                    "Выбери действие:",
+                    reply_markup=menu_keyboard
+                )
             except Exception as e:
                 bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
                 print(f"Ошибка: {e}")
@@ -444,7 +468,13 @@ def handle_messages(message):
                 )
                 bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
                 del user_states[user_id]
-                send_menu(message.chat.id, user_id)
+                
+                menu_keyboard = get_menu_keyboard(user_id)
+                bot.send_message(
+                    message.chat.id,
+                    "Выбери действие:",
+                    reply_markup=menu_keyboard
+                )
             except Exception as e:
                 bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
                 print(f"Ошибка: {e}")

@@ -51,7 +51,6 @@ def set_user_exclude_status(user_id, status):
         user_results[user_id_str] = {"top_90": [], "exclude_from_ranking": status}
     save_json(USER_RESULTS_FILE, user_results)
 
-# 🔧 ИЗМЕНЕНО: Добавлена функция для получения информации о пользователе
 def get_user_info(user_id):
     try:
         user = bot.get_chat(int(user_id))
@@ -83,7 +82,6 @@ def get_menu_keyboard(user_id):
     
     return keyboard
 
-# 🔧 ИЗМЕНЕНО: Функция отправки нового меню (не редактирования)
 def send_new_menu(chat_id, user_id):
     keyboard = get_menu_keyboard(user_id)
     msg = bot.send_message(
@@ -111,7 +109,6 @@ def refresh_menu(user_id, chat_id):
             return True
         except Exception as e:
             print(f"Ошибка обновления меню: {e}")
-            # Если не удалось отредактировать, отправляем новое
             send_new_menu(chat_id, user_id)
             return False
     else:
@@ -220,7 +217,7 @@ def confirm_include(call):
     save_json(USER_RESULTS_FILE, user_results)
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
-    # 🔧 ИЗМЕНЕНО: Отправка уведомления админу
+    # Отправка уведомления админу
     name, username = get_user_info(user_id)
     admin_msg = f"🔓 Пользователь изменил статус\n\n"
     admin_msg += f"👤 Имя: {name}\n"
@@ -231,11 +228,13 @@ def confirm_include(call):
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     
-    # 🔧 ИЗМЕНЕНО: Удаляем сообщение с подтверждением и отправляем новое меню
+    # Удаляем сообщение с подтверждением
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except:
         pass
+    
+    # Отправляем новое меню с обновленной кнопкой
     send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
@@ -264,7 +263,7 @@ def confirm_exclude(call):
     save_json(USER_RESULTS_FILE, user_results)
     save_json(GLOBAL_RANKING_FILE, global_ranking)
     
-    # 🔧 ИЗМЕНЕНО: Отправка уведомления админу
+    # Отправка уведомления админу
     name, username = get_user_info(user_id)
     admin_msg = f"🔒 Пользователь изменил статус\n\n"
     admin_msg += f"👤 Имя: {name}\n"
@@ -275,25 +274,32 @@ def confirm_exclude(call):
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     
-    # 🔧 ИЗМЕНЕНО: Удаляем сообщение с подтверждением и отправляем новое меню
+    # Удаляем сообщение с подтверждением
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except:
         pass
+    
+    # Отправляем новое меню с обновленной кнопкой
     send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "cancel_toggle")
 def cancel_toggle(call):
+    user_id = call.from_user.id
     bot.answer_callback_query(call.id, "❌ Отменено")
-    # 🔧 ИЗМЕНЕНО: Удаляем сообщение с подтверждением и отправляем новое меню
+    
+    # Удаляем сообщение с подтверждением
     try:
         bot.delete_message(call.message.chat.id, call.message.message_id)
     except:
         pass
-    send_new_menu(call.message.chat.id, call.from_user.id)
+    
+    # Возвращаемся к меню (кнопка остается без изменений)
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):
+    user_id = call.from_user.id
     bot.answer_callback_query(call.id)
     
     keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -323,8 +329,9 @@ def story(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_to_menu(call):
+    user_id = call.from_user.id
     bot.answer_callback_query(call.id)
-    send_new_menu(call.message.chat.id, call.from_user.id)
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "my_results")
 def my_results(call):
@@ -352,7 +359,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            refresh_menu(user_id, call.message.chat.id)
+            send_new_menu(call.message.chat.id, user_id)
         else:
             bot.edit_message_text(
                 "❌ **У тебя нет сохранённых результатов!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -360,7 +367,7 @@ def my_results(call):
                 message_id=call.message.message_id,
                 parse_mode="Markdown"
             )
-            refresh_menu(user_id, call.message.chat.id)
+            send_new_menu(call.message.chat.id, user_id)
     else:
         bot.edit_message_text(
             "❌ **Ты ещё не проходил опрос!**\n\nПерейди по ссылке и пройди опрос, чтобы получить свой топ.",
@@ -368,7 +375,7 @@ def my_results(call):
             message_id=call.message.message_id,
             parse_mode="Markdown"
         )
-        refresh_menu(user_id, call.message.chat.id)
+        send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data == "write_author")
 def write_author(call):
@@ -404,7 +411,7 @@ def show_ranking_callback(call):
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
-        refresh_menu(user_id, call.message.chat.id)
+        send_new_menu(call.message.chat.id, user_id)
         return
 
     user_results = load_json(USER_RESULTS_FILE)
@@ -435,7 +442,7 @@ def show_ranking_callback(call):
         parse_mode="Markdown"
     )
     
-    refresh_menu(user_id, call.message.chat.id)
+    send_new_menu(call.message.chat.id, user_id)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_"))
 def reply_to_user(call):
@@ -508,7 +515,7 @@ def handle_messages(message):
                 bot.reply_to(message, "✅ Спасибо! Твоё сообщение передано автору.")
                 del user_states[user_id]
                 
-                refresh_menu(user_id, message.chat.id)
+                send_new_menu(message.chat.id, user_id)
             except Exception as e:
                 bot.reply_to(message, "❌ Ошибка при отправке. Попробуй позже.")
                 print(f"Ошибка: {e}")
@@ -527,7 +534,7 @@ def handle_messages(message):
                 bot.reply_to(message, "✅ Сообщение отправлено пользователю.")
                 del user_states[user_id]
                 
-                refresh_menu(user_id, message.chat.id)
+                send_new_menu(message.chat.id, user_id)
             except Exception as e:
                 bot.reply_to(message, "❌ Не удалось отправить сообщение. Возможно, пользователь заблокировал бота.")
                 print(f"Ошибка: {e}")
@@ -605,7 +612,7 @@ def save_results():
                         if global_ranking[song] <= 0:
                             del global_ranking[song]
         
-        # 🔧 ИЗМЕНЕНО: Сохраняем статус exclude_from_ranking, если он есть, иначе False
+        # Сохраняем статус exclude_from_ranking, если он есть, иначе False
         exclude_status = False
         if user_id in user_results and isinstance(user_results[user_id], dict):
             exclude_status = user_results[user_id].get("exclude_from_ranking", False)
@@ -646,7 +653,7 @@ def save_results():
         except Exception as e:
             print(f"❌ Ошибка отправки админу: {e}")
 
-        # 🔧 ИЗМЕНЕНО: Проверяем статус перед добавлением в рейтинг
+        # Проверяем статус перед добавлением в рейтинг
         if not exclude_status:
             for idx, (song, _) in enumerate(top_90[:3]):
                 if song in global_ranking:

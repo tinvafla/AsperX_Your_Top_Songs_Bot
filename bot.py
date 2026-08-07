@@ -28,18 +28,42 @@ def save_json(file, data):
 def start(message):
     user_id = message.from_user.id
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    keyboard.add(types.InlineKeyboardButton(
-        "🎵 ПЕРЕЙТИ К ОПРОСУ",
-        url=f"{SITE_URL}?user_id={user_id}"
-    ))
+    keyboard.add(
+        types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
+        types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results")
+    )
     bot.send_message(
         message.chat.id,
         "🎵 **ASPER X · YOUR TOP**\n\n"
         "Перейди по ссылке, пройди опрос и получи свой топ-90!\n\n"
-        "После завершения нажми **«Вернуться в бота»**, чтобы сохранить результат.",
+        "После завершения нажми **«Вернуться в бота»** или **«Мои результаты»**, чтобы получить свой топ.",
         parse_mode="Markdown",
         reply_markup=keyboard
     )
+
+@bot.callback_query_handler(func=lambda call: call.data == "my_results")
+def my_results(call):
+    user_id = call.from_user.id
+    bot.answer_callback_query(call.id, "📊 Загружаю твои результаты...")
+    
+    user_results = load_json(USER_RESULTS_FILE)
+    user_id_str = str(user_id)
+    
+    if user_id_str in user_results:
+        top_90 = user_results[user_id_str]
+        text = "🏆 **ТВОЙ ТОП-90**\n\n"
+        for i, (song, score) in enumerate(top_90[:10], 1):
+            text += f"{i}. {song} — {score} ⭐\n"
+        if len(top_90) > 10:
+            text += f"\n... и ещё {len(top_90) - 10} песен"
+        bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+    else:
+        bot.send_message(
+            call.message.chat.id,
+            "❌ **Ты ещё не проходил опрос!**\n\n"
+            "Перейди по ссылке и пройди опрос, чтобы получить свой топ-90.",
+            parse_mode="Markdown"
+        )
 
 app = Flask(__name__)
 

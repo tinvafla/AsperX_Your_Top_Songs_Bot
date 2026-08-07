@@ -4,6 +4,7 @@ import json
 import os
 from flask import Flask, request, jsonify
 import threading
+import datetime
 from flask_cors import CORS
 
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
@@ -84,6 +85,32 @@ def start(message):
     )
     
     send_new_menu(message.chat.id, user_id)
+
+# ===== НОВАЯ КОМАНДА /EXPORT =====
+@bot.message_handler(commands=['export'])
+def export_data(message):
+    if message.from_user.id != int(ADMIN_ID):
+        bot.reply_to(message, "⛔ У вас нет прав на эту команду.")
+        return
+    
+    try:
+        user_results = load_json(USER_RESULTS_FILE)
+        global_ranking = load_json(GLOBAL_RANKING_FILE)
+        
+        data = {
+            "users": user_results,
+            "global_ranking": global_ranking,
+            "export_date": str(datetime.datetime.now())
+        }
+        
+        bot.send_document(
+            message.chat.id,
+            json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'),
+            visible_file_name='bot_data_backup.json'
+        )
+        bot.reply_to(message, "✅ Бэкап отправлен!")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {str(e)}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "story")
 def story(call):

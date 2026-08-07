@@ -5,7 +5,7 @@ import os
 import math
 
 # ===== ТВОЙ ТОКЕН ОТ @BotFather =====
-TOKEN = "СЮДА_ВСТАВЬ_ТОКЕН"
+TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 bot = telebot.TeleBot(TOKEN)
 
 # ===== ССЫЛКА НА ТВОЙ САЙТ =====

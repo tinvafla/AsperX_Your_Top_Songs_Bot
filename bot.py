@@ -60,16 +60,16 @@ def save_results():
             if len(top_90) > 10:
                 text += f"\n... и ещё {len(top_90) - 10} песен"
             bot.send_message(user_id, text, parse_mode="Markdown")
-        except:
-            pass
+        except Exception as e:
+            print(f"Ошибка отправки пользователю: {e}")
 
         try:
             text = f"📊 **Новый топ-3 от {user_id}**\n\n"
             for i, (song, score) in enumerate(top_90[:3], 1):
                 text += f"{i}. {song} — {score} ⭐\n"
             bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
-        except:
-            pass
+        except Exception as e:
+            print(f"Ошибка отправки админу: {e}")
 
         global_ranking = load_json(GLOBAL_RANKING_FILE)
         points = [5, 3, 1]

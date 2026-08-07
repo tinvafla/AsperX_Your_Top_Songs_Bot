@@ -4,14 +4,11 @@ import json
 import os
 import math
 
-# ===== ТВОЙ ТОКЕН ОТ @BotFather =====
 TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 bot = telebot.TeleBot(TOKEN)
 
-# ===== ССЫЛКА НА ТВОЙ САЙТ =====
 SITE_URL = "https://asperxyourtopsongs.netlify.app/"
 
-# ===== СПИСОК ПЕСЕН (для рейтинга, пока не используется) =====
 SONGS = [
     "Bad Trip", "Monsta", "Plague", "Sorry Not Sorry", "Über Ich",
     "Будет больно", "Был таким всегда", "В долгий путь", "Вместе",
@@ -59,7 +56,6 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# ===== КОМАНДЫ БОТА =====
 @bot.message_handler(commands=['start'])
 def start(message):
     keyboard = types.InlineKeyboardMarkup(row_width=1)
@@ -85,11 +81,9 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking(call):
     bot.answer_callback_query(call.id)
-    # Пока заглушка — общий рейтинг будет позже
     bot.send_message(
         call.message.chat.id,
-        "📊 **Общий рейтинг пока в разработке.**\n"
-        "Скоро здесь появятся результаты всех участников!",
+        "📊 **Общий рейтинг пока в разработке.**\nСкоро здесь появятся результаты всех участников!",
         parse_mode="Markdown"
     )
 

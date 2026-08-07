@@ -26,11 +26,16 @@ def save_json(file, data):
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    user_id = message.from_user.id
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    keyboard.add(types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=SITE_URL))
+    keyboard.add(types.InlineKeyboardButton(
+        "🎵 ПЕРЕЙТИ К ОПРОСУ",
+        url=f"{SITE_URL}?user_id={user_id}"
+    ))
     bot.send_message(
         message.chat.id,
-        "🎵 **ASPER X · YOUR TOP**\n\n"
+        f"🎵 **ASPER X · YOUR TOP**\n\n"
+        f"Твой ID: {user_id}\n\n"
         "Перейди по ссылке, пройди опрос и получи свой топ-90!\n\n"
         "После завершения нажми **«Вернуться в бота»**, чтобы сохранить результат.",
         parse_mode="Markdown",
@@ -53,15 +58,16 @@ def save_results():
         user_results[user_id] = top_90
         save_json(USER_RESULTS_FILE, user_results)
 
-        try:
-            text = "🏆 **ТВОЙ ТОП-90**\n\n"
-            for i, (song, score) in enumerate(top_90[:10], 1):
-                text += f"{i}. {song} — {score} ⭐\n"
-            if len(top_90) > 10:
-                text += f"\n... и ещё {len(top_90) - 10} песен"
-            bot.send_message(user_id, text, parse_mode="Markdown")
-        except Exception as e:
-            print(f"Ошибка отправки пользователю: {e}")
+        if user_id != 'anonymous':
+            try:
+                text = "🏆 **ТВОЙ ТОП-90**\n\n"
+                for i, (song, score) in enumerate(top_90[:10], 1):
+                    text += f"{i}. {song} — {score} ⭐\n"
+                if len(top_90) > 10:
+                    text += f"\n... и ещё {len(top_90) - 10} песен"
+                bot.send_message(int(user_id), text, parse_mode="Markdown")
+            except Exception as e:
+                print(f"Ошибка отправки пользователю: {e}")
 
         try:
             text = f"📊 **Новый топ-3 от {user_id}**\n\n"

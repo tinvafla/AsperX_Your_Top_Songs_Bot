@@ -49,12 +49,10 @@ def save_results():
         if not top_90:
             return jsonify({"status": "error", "message": "No top_90"}), 400
 
-        # 1. Сохраняем результат пользователя
         user_results = load_json(USER_RESULTS_FILE)
         user_results[user_id] = top_90
         save_json(USER_RESULTS_FILE, user_results)
 
-        # 2. Отправляем топ-90 пользователю в Telegram
         try:
             text = "🏆 **ТВОЙ ТОП-90**\n\n"
             for i, (song, score) in enumerate(top_90[:10], 1):
@@ -65,20 +63,16 @@ def save_results():
         except:
             pass
 
-        # 3. Отправляем копию админу
         try:
-            text = f"📊 **Новый результат от {user_id}**\n\n"
-            for i, (song, score) in enumerate(top_90[:10], 1):
+            text = f"📊 **Новый топ-3 от {user_id}**\n\n"
+            for i, (song, score) in enumerate(top_90[:3], 1):
                 text += f"{i}. {song} — {score} ⭐\n"
-            if len(top_90) > 10:
-                text += f"\n... и ещё {len(top_90) - 10} песен"
             bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
         except:
             pass
 
-        # 4. Обновляем общий рейтинг (только топ-3)
         global_ranking = load_json(GLOBAL_RANKING_FILE)
-        points = [5, 3, 1]  # 1 место → 5, 2 → 3, 3 → 1
+        points = [5, 3, 1]
         for idx, (song, _) in enumerate(top_90[:3]):
             if song in global_ranking:
                 global_ranking[song] += points[idx]

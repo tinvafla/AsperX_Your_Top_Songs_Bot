@@ -146,8 +146,12 @@ def ranking(message):
         bot.send_message(message.chat.id, "📊 Пока нет голосов. Будь первым!")
         return
 
+    user_results = load_json(USER_RESULTS_FILE)
+    voters_count = len(user_results)
+
     sorted_songs = sorted(data.items(), key=lambda x: x[1], reverse=True)
-    text = "🏆 **ОБЩИЙ РЕЙТИНГ**\n\n"
+    text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"
+    
     current_place = 1
     for i, (song, score) in enumerate(sorted_songs, 1):
         if i > 1 and sorted_songs[i-1][1] != sorted_songs[i-2][1]:

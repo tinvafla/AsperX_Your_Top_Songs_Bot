@@ -35,9 +35,21 @@ def get_user_exclude_status(user_id):
         user_data = user_results[user_id_str]
         if isinstance(user_data, dict):
             return user_data.get("exclude_from_ranking", False)
-        else:
-            return False
+        return False
     return False
+
+def set_user_exclude_status(user_id, status):
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    if user_id_str in user_results:
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            user_data["exclude_from_ranking"] = status
+        else:
+            user_results[user_id_str] = {"top_90": user_data, "exclude_from_ranking": status}
+    else:
+        user_results[user_id_str] = {"top_90": [], "exclude_from_ranking": status}
+    save_json(USER_RESULTS_FILE, user_results)
 
 def get_menu_keyboard(user_id):
     is_excluded = get_user_exclude_status(user_id)
@@ -148,8 +160,6 @@ def back_to_menu(call):
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):
     user_id = call.from_user.id
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
     
     is_excluded = get_user_exclude_status(user_id)
     
@@ -201,14 +211,10 @@ def confirm_include(call):
                     global_ranking[song] += points[idx]
                 else:
                     global_ranking[song] = points[idx]
-        
-        if isinstance(user_results[user_id_str], dict):
-            user_results[user_id_str]["exclude_from_ranking"] = False
-        else:
-            user_results[user_id_str] = {"top_90": user_results[user_id_str], "exclude_from_ranking": False}
-        
-        save_json(GLOBAL_RANKING_FILE, global_ranking)
-        save_json(USER_RESULTS_FILE, user_results)
+    
+    set_user_exclude_status(user_id, False)
+    save_json(USER_RESULTS_FILE, user_results)
+    save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
@@ -257,14 +263,10 @@ def confirm_exclude(call):
                     global_ranking[song] -= points[idx]
                     if global_ranking[song] <= 0:
                         del global_ranking[song]
-        
-        if isinstance(user_results[user_id_str], dict):
-            user_results[user_id_str]["exclude_from_ranking"] = True
-        else:
-            user_results[user_id_str] = {"top_90": user_results[user_id_str], "exclude_from_ranking": True}
-        
-        save_json(GLOBAL_RANKING_FILE, global_ranking)
-        save_json(USER_RESULTS_FILE, user_results)
+    
+    set_user_exclude_status(user_id, True)
+    save_json(USER_RESULTS_FILE, user_results)
+    save_json(GLOBAL_RANKING_FILE, global_ranking)
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(

@@ -1,41 +1,68 @@
 import telebot
 from telebot import types
 import json
-import os
-from flask import Flask, request, jsonify
+import asyncio
 import threading
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+from GramDB import GramDB
 
-TOKEN = "8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
+TOKEN = "С8647866146:AAEchlfSvhJkH9He6lP_1NdyXN-MjYm66XM"
 ADMIN_ID = "832018497"
 bot = telebot.TeleBot(TOKEN)
 
 SITE_URL = "https://tinvafla.github.io/AsperX_Your_Top_Songs_Site/"
 
-GLOBAL_RANKING_FILE = "global_ranking.json"
-USER_RESULTS_FILE = "user_results.json"
+DB_URL = "https://t.me/asperx_data"
 
 user_states = {}
 
-def load_json(file):
-    if os.path.exists(file):
-        with open(file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+def get_sync_db():
+    return GramDB(DB_URL, [TOKEN], api_id=0, api_hash="")
 
-def save_json(file, data):
-    with open(file, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def run_async(coro):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+async def get_user_results(user_id):
+    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
+        result = await db.find_one("users", {"user_id": user_id})
+        return result
+
+async def get_all_users():
+    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
+        return await db.find("users", {})
+
+async def save_user_results(user_id, top_90, exclude=False):
+    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
+        await db.update_one(
+            "users",
+            {"user_id": user_id},
+            {"$set": {"top_90": top_90, "exclude_from_ranking": exclude}},
+            upsert=True
+        )
+
+async def get_global_ranking():
+    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
+        result = await db.find_one("global", {"_id": "ranking"})
+        if result:
+            return result.get("data", {})
+        return {}
+
+async def save_global_ranking(data):
+    async with GramDB(DB_URL, [TOKEN], api_id=0, api_hash="") as db:
+        await db.update_one(
+            "global",
+            {"_id": "ranking"},
+            {"$set": {"data": data}},
+            upsert=True
+        )
 
 def get_user_exclude_status(user_id):
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
-    if user_id_str in user_results:
-        user_data = user_results[user_id_str]
-        if isinstance(user_data, dict):
-            return user_data.get("exclude_from_ranking", False)
-        else:
-            return False
+    result = run_async(get_user_results(user_id))
+    if result:
+        return result.get("exclude_from_ranking", False)
     return False
 
 def get_menu_keyboard(user_id):
@@ -122,8 +149,6 @@ def back_to_menu(call):
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):
     user_id = call.from_user.id
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
     
     is_excluded = get_user_exclude_status(user_id)
     
@@ -157,18 +182,13 @@ def toggle_ranking(call):
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_include")
 def confirm_include(call):
     user_id = call.from_user.id
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
-    global_ranking = load_json(GLOBAL_RANKING_FILE)
+    
+    user_result = run_async(get_user_results(user_id))
+    global_ranking = run_async(get_global_ranking())
     points = [5, 3, 1]
     
-    if user_id_str in user_results:
-        user_data = user_results[user_id_str]
-        if isinstance(user_data, dict):
-            top_90 = user_data.get("top_90", [])
-        else:
-            top_90 = user_data
-        
+    if user_result:
+        top_90 = user_result.get("top_90", [])
         if top_90 and len(top_90) >= 3:
             for idx, (song, _) in enumerate(top_90[:3]):
                 if song in global_ranking:
@@ -176,13 +196,8 @@ def confirm_include(call):
                 else:
                     global_ranking[song] = points[idx]
         
-        if isinstance(user_results[user_id_str], dict):
-            user_results[user_id_str]["exclude_from_ranking"] = False
-        else:
-            user_results[user_id_str] = {"top_90": user_results[user_id_str], "exclude_from_ranking": False}
-        
-        save_json(GLOBAL_RANKING_FILE, global_ranking)
-        save_json(USER_RESULTS_FILE, user_results)
+        run_async(save_user_results(user_id, top_90, False))
+        run_async(save_global_ranking(global_ranking))
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
@@ -213,18 +228,13 @@ def confirm_include(call):
 @bot.callback_query_handler(func=lambda call: call.data == "confirm_exclude")
 def confirm_exclude(call):
     user_id = call.from_user.id
-    user_id_str = str(user_id)
-    user_results = load_json(USER_RESULTS_FILE)
-    global_ranking = load_json(GLOBAL_RANKING_FILE)
+    
+    user_result = run_async(get_user_results(user_id))
+    global_ranking = run_async(get_global_ranking())
     points = [5, 3, 1]
     
-    if user_id_str in user_results:
-        user_data = user_results[user_id_str]
-        if isinstance(user_data, dict):
-            top_90 = user_data.get("top_90", [])
-        else:
-            top_90 = user_data
-        
+    if user_result:
+        top_90 = user_result.get("top_90", [])
         if top_90 and len(top_90) >= 3:
             for idx, (song, _) in enumerate(top_90[:3]):
                 if song in global_ranking:
@@ -232,13 +242,8 @@ def confirm_exclude(call):
                     if global_ranking[song] <= 0:
                         del global_ranking[song]
         
-        if isinstance(user_results[user_id_str], dict):
-            user_results[user_id_str]["exclude_from_ranking"] = True
-        else:
-            user_results[user_id_str] = {"top_90": user_results[user_id_str], "exclude_from_ranking": True}
-        
-        save_json(GLOBAL_RANKING_FILE, global_ranking)
-        save_json(USER_RESULTS_FILE, user_results)
+        run_async(save_user_results(user_id, top_90, True))
+        run_async(save_global_ranking(global_ranking))
     
     bot.answer_callback_query(call.id, "✅ Готово!")
     bot.edit_message_text(
@@ -276,23 +281,16 @@ def my_results(call):
     user_id = call.from_user.id
     bot.answer_callback_query(call.id, "📊 Загружаю твои результаты...")
     
-    user_results = load_json(USER_RESULTS_FILE)
-    user_id_str = str(user_id)
+    user_result = run_async(get_user_results(user_id))
     
-    if user_id_str in user_results:
-        user_data = user_results[user_id_str]
-        if isinstance(user_data, dict):
-            top_90 = user_data.get("top_90", [])
-        else:
-            top_90 = user_data
-        
+    if user_result:
+        top_90 = user_result.get("top_90", [])
         if top_90:
             text = "🏆 **ТВОЙ ТОП**\n\n"
             for i, (song, score) in enumerate(top_90, 1):
                 text += f"{i}. {song}\n"
             
             keyboard = get_menu_keyboard(user_id)
-            
             bot.edit_message_text(
                 text,
                 chat_id=call.message.chat.id,
@@ -344,8 +342,8 @@ def show_ranking_callback(call):
     user_id = call.from_user.id
     bot.answer_callback_query(call.id)
     
-    data = load_json(GLOBAL_RANKING_FILE)
-    if not data:
+    global_ranking = run_async(get_global_ranking())
+    if not global_ranking:
         bot.edit_message_text(
             "📊 Пока нет голосов. Будь первым!",
             chat_id=call.message.chat.id,
@@ -354,16 +352,13 @@ def show_ranking_callback(call):
         send_new_menu(call.message.chat.id, user_id)
         return
 
-    user_results = load_json(USER_RESULTS_FILE)
+    all_users = run_async(get_all_users())
     voters_count = 0
-    for u in user_results.values():
-        if isinstance(u, dict):
-            if not u.get("exclude_from_ranking", False):
-                voters_count += 1
-        else:
+    for u in all_users:
+        if not u.get("exclude_from_ranking", False):
             voters_count += 1
 
-    sorted_songs = sorted(data.items(), key=lambda x: x[1], reverse=True)
+    sorted_songs = sorted(global_ranking.items(), key=lambda x: x[1], reverse=True)
     text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"
     
     current_place = 1
@@ -495,20 +490,15 @@ def save_results():
             print("❌ top_90 пустой!")
             return jsonify({"status": "error", "message": "No top_90"}), 400
 
-        user_results = load_json(USER_RESULTS_FILE)
-        global_ranking = load_json(GLOBAL_RANKING_FILE)
+        user_result = run_async(get_user_results(user_id))
+        global_ranking = run_async(get_global_ranking())
         points = [5, 3, 1]
         
         old_exclude = False
         
-        if user_id in user_results:
-            user_data = user_results[user_id]
-            if isinstance(user_data, dict):
-                old_top_90 = user_data.get("top_90", [])
-                old_exclude = user_data.get("exclude_from_ranking", False)
-            else:
-                old_top_90 = user_data
-                old_exclude = False
+        if user_result:
+            old_top_90 = user_result.get("top_90", [])
+            old_exclude = user_result.get("exclude_from_ranking", False)
             
             if old_top_90 and len(old_top_90) >= 3:
                 old_top_3 = old_top_90[:3]
@@ -518,8 +508,7 @@ def save_results():
                         if global_ranking[song] <= 0:
                             del global_ranking[song]
         
-        user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": old_exclude}
-        save_json(USER_RESULTS_FILE, user_results)
+        run_async(save_user_results(user_id, top_90, old_exclude))
         print("✅ Результаты сохранены для:", user_id)
 
         if user_id != 'anonymous':
@@ -560,7 +549,7 @@ def save_results():
                     global_ranking[song] += points[idx]
                 else:
                     global_ranking[song] = points[idx]
-            save_json(GLOBAL_RANKING_FILE, global_ranking)
+            run_async(save_global_ranking(global_ranking))
             print("✅ Общий рейтинг обновлён")
         else:
             print("ℹ️ Пользователь исключён из общего рейтинга")
@@ -570,6 +559,60 @@ def save_results():
     except Exception as e:
         print("❌ ОШИБКА:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@bot.message_handler(commands=['export'])
+def export_data(message):
+    if message.from_user.id != int(ADMIN_ID):
+        bot.reply_to(message, "⛔ У вас нет прав на эту команду.")
+        return
+    
+    try:
+        all_users = run_async(get_all_users())
+        global_ranking = run_async(get_global_ranking())
+        
+        data = {
+            "users": all_users,
+            "global_ranking": global_ranking,
+            "export_date": str(import_datetime.datetime.now())
+        }
+        
+        bot.send_document(
+            message.chat.id,
+            json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'),
+            visible_file_name='bot_data_backup.json'
+        )
+        bot.reply_to(message, "✅ Бэкап отправлен!")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {e}")
+
+import datetime as import_datetime
+
+@bot.message_handler(commands=['ranking'])
+def ranking(message):
+    global_ranking = run_async(get_global_ranking())
+    if not global_ranking:
+        bot.send_message(message.chat.id, "📊 Пока нет голосов. Будь первым!")
+        return
+
+    all_users = run_async(get_all_users())
+    voters_count = 0
+    for u in all_users:
+        if not u.get("exclude_from_ranking", False):
+            voters_count += 1
+
+    sorted_songs = sorted(global_ranking.items(), key=lambda x: x[1], reverse=True)
+    text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"
+    
+    current_place = 1
+    for i, (song, score) in enumerate(sorted_songs, 1):
+        if i > 1 and sorted_songs[i-1][1] != sorted_songs[i-2][1]:
+            current_place = i
+        medal = "🥇" if current_place == 1 else "🥈" if current_place == 2 else "🥉" if current_place == 3 else f"{current_place}."
+        text += f"{medal} {song}\n"
+        if i >= 20:
+            break
+
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 def run_flask():
     app.run(host='0.0.0.0', port=5000)

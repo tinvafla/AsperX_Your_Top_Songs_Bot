@@ -27,17 +27,43 @@ def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def get_user_exclude_status(user_id):
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    if user_id_str in user_results:
+        if isinstance(user_results[user_id_str], dict):
+            return user_results[user_id_str].get("exclude_from_ranking", False)
+        else:
+            return False
+    return False
+
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
+    user_id_str = str(user_id)
+    user_results = load_json(USER_RESULTS_FILE)
+    
+    is_excluded = False
+    if user_id_str in user_results:
+        if isinstance(user_results[user_id_str], dict):
+            is_excluded = user_results[user_id_str].get("exclude_from_ranking", False)
+        else:
+            is_excluded = False
+    
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
         types.InlineKeyboardButton("🎵 ПЕРЕЙТИ К ОПРОСУ", url=f"{SITE_URL}?user_id={user_id}"),
         types.InlineKeyboardButton("📊 МОИ РЕЗУЛЬТАТЫ", callback_data="my_results"),
-        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking"),
-        types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"),
-        types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author")
+        types.InlineKeyboardButton("🏆 ОБЩИЙ РЕЙТИНГ", callback_data="show_ranking")
     )
+    
+    if is_excluded:
+        keyboard.add(types.InlineKeyboardButton("🔓 УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
+    else:
+        keyboard.add(types.InlineKeyboardButton("🔒 НЕ УЧИТЫВАТЬ В ОБЩЕМ РЕЙТИНГЕ", callback_data="toggle_ranking"))
+    
+    keyboard.add(types.InlineKeyboardButton("✉️ НАПИСАТЬ АВТОРУ", callback_data="write_author"))
+    
     bot.send_message(
         message.chat.id,
         "🎵 **ASPER X · YOUR TOP**\n\n"
@@ -51,28 +77,6 @@ def start(message):
         reply_markup=keyboard
     )
 
-@bot.callback_query_handler(func=lambda call: call.data == "write_author")
-def write_author(call):
-    user_id = call.from_user.id
-    user_states[user_id] = "waiting_for_author_message"
-    keyboard = types.InlineKeyboardMarkup(row_width=1)
-    keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_author"))
-    bot.answer_callback_query(call.id)
-    bot.send_message(
-        call.message.chat.id,
-        "📝 Напиши своё пожелание, вопрос или отзыв.\n\nЯ передам это автору.",
-        reply_markup=keyboard
-    )
-
-@bot.callback_query_handler(func=lambda call: call.data == "cancel_author")
-def cancel_author(call):
-    user_id = call.from_user.id
-    if user_id in user_states:
-        del user_states[user_id]
-    bot.answer_callback_query(call.id, "❌ Отменено")
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    bot.send_message(call.message.chat.id, "❌ Действие отменено.")
-
 @bot.callback_query_handler(func=lambda call: call.data == "toggle_ranking")
 def toggle_ranking(call):
     user_id = call.from_user.id
@@ -83,7 +87,11 @@ def toggle_ranking(call):
         bot.answer_callback_query(call.id, "❌ Ты ещё не проходил опрос!")
         return
     
-    is_excluded = user_results[user_id_str].get("exclude_from_ranking", False)
+    is_excluded = False
+    if isinstance(user_results[user_id_str], dict):
+        is_excluded = user_results[user_id_str].get("exclude_from_ranking", False)
+    else:
+        is_excluded = False
     
     if is_excluded:
         keyboard = types.InlineKeyboardMarkup(row_width=2)
@@ -119,13 +127,24 @@ def confirm_include(call):
     points = [5, 3, 1]
     
     if user_id_str in user_results:
-        user_results[user_id_str]["exclude_from_ranking"] = False
-        top_90 = user_results[user_id_str]
-        for idx, (song, _) in enumerate(top_90[:3]):
-            if song in global_ranking:
-                global_ranking[song] += points[idx]
-            else:
-                global_ranking[song] = points[idx]
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            top_90 = user_data.get("top_90", [])
+        else:
+            top_90 = user_data
+        
+        if top_90 and len(top_90) >= 3:
+            for idx, (song, _) in enumerate(top_90[:3]):
+                if song in global_ranking:
+                    global_ranking[song] += points[idx]
+                else:
+                    global_ranking[song] = points[idx]
+        
+        if isinstance(user_results[user_id_str], dict):
+            user_results[user_id_str]["exclude_from_ranking"] = False
+        else:
+            user_results[user_id_str] = {"top_90": user_results[user_id_str], "exclude_from_ranking": False}
+        
         save_json(GLOBAL_RANKING_FILE, global_ranking)
         save_json(USER_RESULTS_FILE, user_results)
     
@@ -163,13 +182,24 @@ def confirm_exclude(call):
     points = [5, 3, 1]
     
     if user_id_str in user_results:
-        user_results[user_id_str]["exclude_from_ranking"] = True
-        top_90 = user_results[user_id_str]
-        for idx, (song, _) in enumerate(top_90[:3]):
-            if song in global_ranking:
-                global_ranking[song] -= points[idx]
-                if global_ranking[song] <= 0:
-                    del global_ranking[song]
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            top_90 = user_data.get("top_90", [])
+        else:
+            top_90 = user_data
+        
+        if top_90 and len(top_90) >= 3:
+            for idx, (song, _) in enumerate(top_90[:3]):
+                if song in global_ranking:
+                    global_ranking[song] -= points[idx]
+                    if global_ranking[song] <= 0:
+                        del global_ranking[song]
+        
+        if isinstance(user_results[user_id_str], dict):
+            user_results[user_id_str]["exclude_from_ranking"] = True
+        else:
+            user_results[user_id_str] = {"top_90": user_results[user_id_str], "exclude_from_ranking": True}
+        
         save_json(GLOBAL_RANKING_FILE, global_ranking)
         save_json(USER_RESULTS_FILE, user_results)
     
@@ -213,11 +243,24 @@ def my_results(call):
     user_id_str = str(user_id)
     
     if user_id_str in user_results:
-        top_90 = user_results[user_id_str]
-        text = "🏆 **ТВОЙ ТОП**\n\n"
-        for i, (song, score) in enumerate(top_90, 1):
-            text += f"{i}. {song}\n"
-        bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+        user_data = user_results[user_id_str]
+        if isinstance(user_data, dict):
+            top_90 = user_data.get("top_90", [])
+        else:
+            top_90 = user_data
+        
+        if top_90:
+            text = "🏆 **ТВОЙ ТОП**\n\n"
+            for i, (song, score) in enumerate(top_90, 1):
+                text += f"{i}. {song}\n"
+            bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+        else:
+            bot.send_message(
+                call.message.chat.id,
+                "❌ **У тебя нет сохранённых результатов!**\n\n"
+                "Перейди по ссылке и пройди опрос, чтобы получить свой топ.",
+                parse_mode="Markdown"
+            )
     else:
         bot.send_message(
             call.message.chat.id,
@@ -225,6 +268,28 @@ def my_results(call):
             "Перейди по ссылке и пройди опрос, чтобы получить свой топ.",
             parse_mode="Markdown"
         )
+
+@bot.callback_query_handler(func=lambda call: call.data == "write_author")
+def write_author(call):
+    user_id = call.from_user.id
+    user_states[user_id] = "waiting_for_author_message"
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.add(types.InlineKeyboardButton("❌ ОТМЕНА", callback_data="cancel_author"))
+    bot.answer_callback_query(call.id)
+    bot.send_message(
+        call.message.chat.id,
+        "📝 Напиши своё пожелание, вопрос или отзыв.\n\nЯ передам это автору.",
+        reply_markup=keyboard
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "cancel_author")
+def cancel_author(call):
+    user_id = call.from_user.id
+    if user_id in user_states:
+        del user_states[user_id]
+    bot.answer_callback_query(call.id, "❌ Отменено")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    bot.send_message(call.message.chat.id, "❌ Действие отменено.")
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_ranking")
 def show_ranking_callback(call):
@@ -255,22 +320,23 @@ def save_results():
         points = [5, 3, 1]
         
         if user_id in user_results:
-            old_top_90 = user_results[user_id]
-            old_top_3 = old_top_90[:3]
-            for idx, (song, _) in enumerate(old_top_3):
-                if song in global_ranking:
-                    global_ranking[song] -= points[idx]
-                    if global_ranking[song] <= 0:
-                        del global_ranking[song]
+            user_data = user_results[user_id]
+            if isinstance(user_data, dict):
+                old_top_90 = user_data.get("top_90", [])
+                old_exclude = user_data.get("exclude_from_ranking", False)
+            else:
+                old_top_90 = user_data
+                old_exclude = False
+            
+            if old_top_90 and len(old_top_90) >= 3:
+                old_top_3 = old_top_90[:3]
+                for idx, (song, _) in enumerate(old_top_3):
+                    if song in global_ranking:
+                        global_ranking[song] -= points[idx]
+                        if global_ranking[song] <= 0:
+                            del global_ranking[song]
         
-        if user_id in user_results and isinstance(user_results[user_id], dict):
-            exclude_flag = user_results[user_id].get("exclude_from_ranking", False)
-            user_results[user_id] = top_90
-            if exclude_flag:
-                user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": True}
-        else:
-            user_results[user_id] = top_90
-        
+        user_results[user_id] = {"top_90": top_90, "exclude_from_ranking": old_exclude}
         save_json(USER_RESULTS_FILE, user_results)
         print("✅ Результаты сохранены для:", user_id)
 
@@ -306,11 +372,7 @@ def save_results():
         except Exception as e:
             print(f"❌ Ошибка отправки админу: {e}")
 
-        exclude_flag = False
-        if user_id in user_results and isinstance(user_results[user_id], dict):
-            exclude_flag = user_results[user_id].get("exclude_from_ranking", False)
-        
-        if not exclude_flag:
+        if not old_exclude:
             for idx, (song, _) in enumerate(top_90[:3]):
                 if song in global_ranking:
                     global_ranking[song] += points[idx]
@@ -425,7 +487,13 @@ def ranking(message):
         return
 
     user_results = load_json(USER_RESULTS_FILE)
-    voters_count = len([u for u in user_results.values() if not (isinstance(u, dict) and u.get("exclude_from_ranking", False))])
+    voters_count = 0
+    for u in user_results.values():
+        if isinstance(u, dict):
+            if not u.get("exclude_from_ranking", False):
+                voters_count += 1
+        else:
+            voters_count += 1
 
     sorted_songs = sorted(data.items(), key=lambda x: x[1], reverse=True)
     text = f"🏆 **ОБЩИЙ РЕЙТИНГ**\n👥 Участников: {voters_count}\n\n"

@@ -1,6 +1,4 @@
-## ✅ **ФИНАЛЬНЫЙ КОД БОТА С ТЕЛЕГРАМ-ЦИТАТОЙ**
-
-```python
+python
 import telebot
 from telebot import types
 import json
